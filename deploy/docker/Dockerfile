@@ -7,8 +7,11 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /build
-COPY . .
-RUN pip install --no-cache-dir .
+COPY requirements.lock .
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock
+COPY pyproject.toml README.md LICENSE ./
+COPY src/ src/
+RUN pip install --no-cache-dir --no-deps .
 
 FROM python:3.13-slim
 
@@ -24,7 +27,5 @@ RUN useradd --create-home appuser \
  && install -d -m 0755 -o appuser -g appuser /home/appuser/.tradingagents
 USER appuser
 WORKDIR /home/appuser/app
-
-COPY --from=builder --chown=appuser:appuser /build .
 
 ENTRYPOINT ["tradingagents"]

@@ -39,9 +39,9 @@ jobs:
           python-version: "3.13"
       - name: Check the package version matches the tag
         run: |
-          version=$(python -c "import re, pathlib; print(re.search(r'__version__ = \"([^\"]+)\"', pathlib.Path('tradingagents/__init__.py').read_text()).group(1))")
+          version=$(python -c "import re, pathlib; print(re.search(r'__version__ = \"([^\"]+)\"', pathlib.Path('src/tradingagents/__init__.py').read_text()).group(1))")
           if [ "v$version" != "$TAG" ]; then
-            echo "tradingagents/__init__.py says $version, but the tag is $TAG"
+            echo "src/tradingagents/__init__.py says $version, but the tag is $TAG"
             exit 1
           fi
       - name: Build the source archive and wheel

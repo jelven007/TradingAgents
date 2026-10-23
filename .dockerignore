@@ -1,6 +1,13 @@
 .git
 .venv
 .env
+.env.*
+*.env
+**/*.env
+.bootstrap
+.tools
+.cache
+runtime
 .claude
 .idea
 .vscode
@@ -11,5 +18,6 @@ build
 dist
 results
 eval_results
-Dockerfile
-docker-compose.yml
+tests
+.pytest_cache
+.ruff_cache

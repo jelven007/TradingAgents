@@ -56,6 +56,16 @@ def pytest_configure(config):
     yfinance.set_tz_cache_location(tempfile.mkdtemp(prefix="tradingagents-tests-yf-"))
 
 
+def pytest_collection_modifyitems(items):
+    """The offline system suite keeps a separate selectable marker."""
+    from pathlib import Path
+
+    system_dir = Path(__file__).parent / "system"
+    for item in items:
+        if system_dir in Path(item.path).parents:
+            item.add_marker(pytest.mark.system)
+
+
 @pytest.fixture(autouse=True)
 def _no_network(request, monkeypatch):
     """Tests do not reach the network; one that must is marked integration."""

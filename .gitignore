@@ -151,9 +151,9 @@ activemq-data/
 .env
 .envrc
 .venv
-env/
+/env/
 venv/
-ENV/
+/ENV/
 env.bak/
 venv.bak/
 
@@ -221,3 +221,11 @@ __marimo__/
 # Enterprise env file (secrets) and generated run reports
 .env.enterprise
 reports/
+
+# Workspace tooling and private runtime data
+.bootstrap/
+.tools/
+runtime/
+.env.*
+!.env.*.example
+*.env
