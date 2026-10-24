@@ -7,6 +7,7 @@ from typing import Any
 
 from tradingagents.dataflows.date_window import is_historical
 from tradingagents.dataflows.vendors.yahoo.fundamentals import get_company_profile
+from tradingagents.domain.research import ResearchMandate
 
 logger = logging.getLogger(__name__)
 
@@ -179,12 +180,14 @@ def get_instrument_context_from_state(state: Mapping[str, Any]) -> str:
     consumer is never forced to make a yfinance call mid-graph.
     """
     context = state.get("instrument_context")
-    if isinstance(context, str) and context.strip():
-        return context
-    return build_instrument_context(
-        str(state["company_of_interest"]),
-        state.get("asset_type", "stock"),
-    )
+    if not isinstance(context, str) or not context.strip():
+        context = build_instrument_context(
+            str(state["company_of_interest"]),
+            state.get("asset_type", "stock"),
+        )
+    if state.get("research_mandate"):
+        context += "\n\n" + ResearchMandate.model_validate(state["research_mandate"]).render()
+    return context
 
 
 def report_or_absent(text: str, source: str) -> str:

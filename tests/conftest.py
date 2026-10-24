@@ -5,6 +5,9 @@ import socket
 
 import pytest
 
+_SOCKET_CONNECT = socket.socket.connect
+_GETADDRINFO = socket.getaddrinfo
+
 
 def _blank_settings_overlay():
     """Blank every TRADINGAGENTS_* setting before the package is imported.
@@ -83,6 +86,24 @@ def _no_network(request, monkeypatch):
 
     monkeypatch.setattr(curl_requests.Session, "request", refuse)
     monkeypatch.setattr(curl_requests.AsyncSession, "request", refuse)
+
+
+@pytest.fixture
+def loopback_network(monkeypatch):
+    """Exercise a local HTTP server while external sockets and curl remain blocked."""
+    def connect(sock, address):
+        if not isinstance(address, tuple) or address[0] != "127.0.0.1":
+            raise OSError("only IPv4 loopback is allowed")
+        return _SOCKET_CONNECT(sock, address)
+
+    def resolve(host, *args, **kwargs):
+        if host != "127.0.0.1":
+            raise OSError("only IPv4 loopback resolution is allowed")
+        return _GETADDRINFO(host, *args, **kwargs)
+
+    monkeypatch.setattr(socket.socket, "connect", connect)
+    monkeypatch.setattr(socket, "getaddrinfo", resolve)
+    monkeypatch.setenv("no_proxy", "127.0.0.1")
 
 
 @pytest.fixture(autouse=True)

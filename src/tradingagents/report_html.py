@@ -13,6 +13,7 @@ from importlib.resources import files
 from markdown_it import MarkdownIt
 
 from tradingagents.agents.rating import run_rating
+from tradingagents.domain.research import ResearchMandate
 from tradingagents.reporting import analyst_names
 
 # Ratings by direction, so the page can show which way the call leans.
@@ -242,6 +243,9 @@ def _run_details(final_state: dict, settings: dict | None) -> list[tuple[str, st
         details.append(("Version", escape(f"TradingAgents {s('version', '?')}")))
     if final_state.get("memory_note"):
         details.append(("Memory log", escape(final_state["memory_note"])))
+    if final_state.get("research_mandate"):
+        mandate = ResearchMandate.model_validate(final_state["research_mandate"])
+        details.append(("Research mandate", escape(mandate.render())))
     return details
 
 

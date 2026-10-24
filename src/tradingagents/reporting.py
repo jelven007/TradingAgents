@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from tradingagents.agents.rating import run_rating
+from tradingagents.domain.research import ResearchMandate
 
 
 def analyst_names(keys) -> list[str]:
@@ -43,6 +44,9 @@ def _header(ticker: str, final_state: dict, settings: dict | None) -> str:
             lines.append("- Data vendors: " + ", ".join(f"{k} {v}" for k, v in vendors.items()))
     if final_state.get("memory_note"):
         lines.append(f"- Memory log: {final_state['memory_note']}")
+    if final_state.get("research_mandate"):
+        mandate = ResearchMandate.model_validate(final_state["research_mandate"])
+        lines.append(f"- {mandate.render()}")
     return "\n".join(lines) + "\n\n"
 
 

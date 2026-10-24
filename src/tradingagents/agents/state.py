@@ -43,6 +43,7 @@ class RiskDebateState(TypedDict):
 
 
 class AgentState(MessagesState):
+    research_mandate: Annotated[dict, "Optional frozen daily research purpose, horizon and benchmark"]
     company_of_interest: Annotated[str, "Company that we are interested in trading"]
     asset_type: Annotated[str, "Asset type under analysis such as stock or crypto"]
     instrument_context: Annotated[str, "Deterministic ticker identity resolved at run start"]

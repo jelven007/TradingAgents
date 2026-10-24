@@ -43,6 +43,10 @@ ChatGPT订阅登录是上游支持的个人研究模式，生产服务优先使�
 
 `data_vendors`按类别、`tool_vendors`按工具覆盖，tool优先；显式链如 `"sec_edgar,yfinance"`只在链内fallback。`holding_period_days`默认5交易日，`benchmark_map`区域映射；`news_article_limit`等控制数据量，`memory_log_max_entries`只修剪已resolved记录。不存在自动加载YAML配置的实现。
 
+2026-10-24迭代1新增可选 `research_mandate` 字典：ticker、analysis_date、prediction_horizon_trading_days、benchmark、quote_currency、valid_until为必填项，asset_type默认为stock，purpose默认为general_research。契约会进入分析上下文、状态日志及Markdown/HTML报告，并将holding_period_days和benchmark_ticker设置为契约值。调用propagate的标的/日期/资产必须与契约一致；跨日期网格需为每个单元建立契约，不可复用一个固定日期契约。
+
+该契约只支持daily，拒绝intraday/cutoff等未实现字段；不会宣称拥有交易所盘中时点精度。期限按交易日描述，valid_until是日历日期，二者不自动互换。未提供契约的旧SDK/CLI继续使用既有配置。PortfolioContext同时拒绝重复标的、非有限数值、负成本价、未知字段；负数量仍表示空头，负现金并不被擅自解释成非法账户。
+
 ## 5. 环境划分
 
 local可交互、独立目录；test强制离线、临时路径；受控CLI试运行按操作者/实验隔离缓存、结果、记忆与checkpoint；未来staging/production经版本注册和secret manager设置。生产API的预算、身份、队列和数据库配置在具体实现时定义，不将设计参数冒充已生效配置。

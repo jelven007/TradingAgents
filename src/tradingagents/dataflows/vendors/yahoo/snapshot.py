@@ -18,6 +18,7 @@ from stockstats import wrap
 from tradingagents.dataflows.errors import NoMarketDataError
 from tradingagents.dataflows.symbols import normalize_symbol
 from tradingagents.dataflows.vendors.yahoo.ohlcv import load_ohlcv
+from tradingagents.infrastructure.evidence import record_evidence
 
 # A fixed, common indicator set so the snapshot is the same shape every run.
 DEFAULT_SNAPSHOT_INDICATORS: tuple[str, ...] = (
@@ -87,6 +88,15 @@ def build_verified_market_snapshot(
 
     latest = df.iloc[-1]
     latest_date = _fmt(latest["Date"])
+    record_evidence("yfinance", "verified_market_facts",
+                    {"symbol": symbol, "as_of_date": as_of_date}, {
+                        "schema_version": 1, "ticker": symbol.upper(),
+                        "canonical_ticker": normalize_symbol(symbol),
+                        "as_of_date": as_of_date, "price_date": latest_date,
+                        "currency": None, "price_basis": "vendor OHLCV; adjustment basis unverified",
+                        "values": {key: str(latest.get(key))
+                                   for key in ("Open", "High", "Low", "Close", "Volume")},
+                    })
     window = max(1, min(int(look_back_days), 30))
     recent = df.tail(window)
 

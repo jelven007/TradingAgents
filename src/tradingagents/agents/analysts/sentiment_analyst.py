@@ -38,6 +38,7 @@ from tradingagents.dataflows.vendors.reddit import (
     subreddits_for,
 )
 from tradingagents.dataflows.vendors.stocktwits import fetch_stocktwits_messages
+from tradingagents.infrastructure.evidence import record_evidence
 
 
 def _seven_days_back(trade_date: str) -> str:
@@ -74,6 +75,11 @@ def create_sentiment_analyst(llm):
         reddit_block = fetch_reddit_posts(
             ticker, subreddits, start_date=start_date, end_date=end_date, screen=screen
         )
+        for source, block in (("news_prefetch", news_block), ("stocktwits", stocktwits_block),
+                              ("reddit", reddit_block)):
+            record_evidence(source, "sentiment_prompt_input",
+                            {"ticker": ticker, "start_date": start_date, "end_date": end_date,
+                             "screened": screen is not None, "subreddits": subreddits}, block)
 
         system_message = _build_system_message(
             ticker=ticker,

@@ -1,0 +1,24 @@
+{
+  "research": {
+    "daily": {
+      "config": {
+        "research_policy": {
+          "version": "pilot-daily-v1",
+          "approved_tickers": ["NVDA"],
+          "require_licensed_sources": true
+        },
+        "source_licenses": {}
+      },
+      "limits": {
+        "max_calls": 40,
+        "max_attempts": 2,
+        "max_seconds": 900,
+        "max_output_tokens": 4096,
+        "budget_microusd": 10000000,
+        "reserve_per_call_microusd": 500000
+      },
+      "max_pending": 20,
+      "workspace_budget_microusd": 100000000
+    }
+  }
+}

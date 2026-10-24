@@ -1,6 +1,8 @@
 # 观测、SLO、告警与容量
 
-状态：目标规范；当前仅有Python日志、CLI统计和文件报告，尚无集中指标/告警。NFR-001/NFR-006定义的SLO待部署测量与负责人确认。
+状态：2026-10-24，已有本地task/attempt/call账本、request_id访问审计、完整终态/复核/费用查询和控制开关，见[本地手册](../03-development/managed-research.md)。以下Prometheus/Trace、集中指标/告警仍为目标；NFR-001/NFR-006的SLO待部署测量与负责人确认。
+
+本地 `operations`与`audit`使用独立scope；账单未知单列，不用预留额冒充已付费用。`control pause_submissions`暂停新准入，`control freeze_publication`阻止报告发布，既有幂等任务可查询；两者不自动取消正在运行的模型调用。默认deadline1800秒，与下文15分钟生产建议区分。尚未完成20并发1000请求压测、集中时序指标、自动告警或月可用性测量。
 
 ## 1. 关联与指标
 

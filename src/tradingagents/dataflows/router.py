@@ -38,6 +38,7 @@ from tradingagents.dataflows.vendors.yahoo.market import (
     get_YFin_data_online,
 )
 from tradingagents.dataflows.vendors.yahoo.news import get_global_news_yfinance, get_news_yfinance
+from tradingagents.infrastructure.evidence import record_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -233,22 +234,30 @@ def route_to_vendor(method: str, *args, **kwargs):
         impl_func = vendor_impl[0] if isinstance(vendor_impl, list) else vendor_impl
 
         try:
-            return impl_func(*args, **kwargs)
+            result = impl_func(*args, **kwargs)
         except VendorUnavailableError as e:
+            record_evidence(vendor, method, {"args": args, "kwargs": kwargs},
+                            {"error_type": type(e).__name__}, status="error")
             logger.warning("Vendor %r unavailable for %s: %s; trying next vendor.", vendor, method, e)
             # Kept so an all-unavailable chain can say the vendor was the
             # problem, rather than reporting nothing about the symbol.
             last_unavailable = e
             continue
         except VendorNotConfiguredError as e:
+            record_evidence(vendor, method, {"args": args, "kwargs": kwargs},
+                            {"error_type": type(e).__name__}, status="error")
             logger.warning("Vendor %r not configured for %s; trying next vendor.", vendor, method)
             if first_error is None:
                 first_error = e  # Surface it if no other vendor can serve the call.
             continue
         except NoMarketDataError as e:
+            record_evidence(vendor, method, {"args": args, "kwargs": kwargs},
+                            {"error_type": type(e).__name__}, status="error")
             last_no_data = e  # No data here; another configured vendor may have it
             continue
         except Exception as e:
+            record_evidence(vendor, method, {"args": args, "kwargs": kwargs},
+                            {"error_type": type(e).__name__}, status="error")
             # Don't let one vendor's failure crash the call when another can
             # serve it, but never swallow silently: a broken primary must be
             # visible in the logs (#989), not hidden behind a fallback's verdict.
@@ -257,6 +266,11 @@ def route_to_vendor(method: str, *args, **kwargs):
                 first_error = e
             failed = e
             continue
+        else:
+            # Outside the fallback try: a failed evidence write must not be
+            # mistaken for a vendor failure and replaced with another source.
+            record_evidence(vendor, method, {"args": args, "kwargs": kwargs}, result)
+            return result
 
     # A vendor that throttled or failed the request never said whether it has
     # the symbol, so no other vendor's "no data" can speak for the whole chain:

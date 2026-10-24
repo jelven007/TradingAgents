@@ -6,6 +6,7 @@ import typer
 from rich.markup import escape
 
 from cli.display import console
+from cli.managed import app as managed_app
 from cli.models import AnalystType, AssetType
 from cli.prompts import filter_analysts_for_asset_type, parse_analysts
 from cli.run import run_analysis
@@ -31,6 +32,7 @@ app = typer.Typer(
     help="TradingAgents CLI: Multi-Agents LLM Financial Trading Framework",
     add_completion=True,  # Enable shell completion
 )
+app.add_typer(managed_app, name="managed")
 
 
 @app.callback(invoke_without_command=True)

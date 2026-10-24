@@ -1120,6 +1120,7 @@ pydantic==2.14.1 \
     #   langgraph
     #   langsmith
     #   openai
+    #   tradingagents
 pydantic-core==2.50.1 \
     --hash=sha256:0036473f5583e6a60e50b8b21651511564277a3f05cc5dab8cf579f552cd5f6c \
     --hash=sha256:0048b6dddc8ef4b64fccaad878bd143b0c3882ea9936279dc11d613f6b7dd1bc \

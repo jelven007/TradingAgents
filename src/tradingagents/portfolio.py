@@ -17,19 +17,38 @@ import hashlib
 import json
 from pathlib import Path
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+
+from tradingagents.domain.research import canonical_symbol
 
 
 class Position(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False, extra="forbid")
+
     ticker: str = Field(description="Instrument symbol, e.g. AAPL")
     quantity: float = Field(description="Signed units held; negative is short")
-    average_price: float | None = Field(default=None, description="Average entry price per unit")
+    average_price: float | None = Field(default=None, ge=0, description="Average entry price per unit")
+
+    @field_validator("ticker")
+    @classmethod
+    def _ticker(cls, value: str) -> str:
+        return canonical_symbol(value)
 
 
 class PortfolioContext(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False, extra="forbid")
+
     cash: float | None = Field(default=None, description="Free cash available")
-    currency: str | None = Field(default=None, description="Currency label for cash and prices")
+    currency: str | None = Field(default=None, pattern=r"^[A-Z]{3}$",
+                                 description="Three-letter currency label for cash and prices")
     positions: list[Position] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _unique_positions(self):
+        tickers = [position.ticker for position in self.positions]
+        if len(tickers) != len(set(tickers)):
+            raise ValueError("duplicate positions must be consolidated before analysis")
+        return self
 
     def position_in(self, ticker: str) -> Position | None:
         return next((p for p in self.positions if p.ticker.upper() == ticker.strip().upper()), None)

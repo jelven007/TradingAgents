@@ -1,0 +1,20 @@
+{
+  "entry_session": "2026-10-19",
+  "exit_session": "2026-10-20",
+  "asset": {
+    "symbol": "NVDA",
+    "currency": "USD",
+    "basis": "split_adjusted_close",
+    "entry": "100",
+    "exit": "110"
+  },
+  "benchmark": {
+    "symbol": "SPY",
+    "currency": "USD",
+    "basis": "split_adjusted_close",
+    "entry": "200",
+    "exit": "210"
+  },
+  "source": "synthetic example only",
+  "source_payload": "Illustrative prices, not real market data: NVDA 100 to 110; SPY 200 to 210; USD"
+}

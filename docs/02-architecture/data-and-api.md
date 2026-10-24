@@ -1,6 +1,10 @@
 # 数据模型与接口契约
 
-状态：目标契约，HTTP API 和数据库表尚未实现。适用于 FR-001、FR-002、FR-004、FR-006、FR-008、FR-009、FR-012。接口实现前以本文件为评审输入，正式 OpenAPI 与数据库迁移须随实现生成。
+状态：2026-10-24。本文表格为生产目标契约；已实现的本机HTTP/CLI、SQLite表与错误码见[本地手册](../03-development/managed-research.md)。适用于 FR-001、FR-002、FR-004、FR-006、FR-008、FR-009、FR-012。正式生产OpenAPI/数据库迁移治理仍待建。
+
+本地表包括tasks/attempts/model_calls/task_events、reports/report_events、identities/access_events、controls/cost_events、experiments/predictions/observations。金额为整数micro-USD，仓位和观察收益用Decimal字符串。计划固定样本、研究契约、模板hash、显式session序列及价格口径；预测绑定已接受报告与复核事件hash，观察追加并保留来源文本/输入hash。相同session冲突拒绝，修正须另立实验。
+
+本地路径为 `root/workspace/experiment/task/attempt`；幂等为工作空间+作者+键，HTTP成功统一200、幂等冲突400、未知对象404、跨空间403。API没有 `/api/v1` 前缀、签名下载、health、配置生效接口或自动网格调度。客户端workspace须与凭据一致，操作者由token取得；上述差异不代表生产目标已实现。
 
 ## 1. 领域实体
 

@@ -1,6 +1,6 @@
 # 部署与受控运行手册
 
-状态：本节提供**现有单机CLI部署命令**；后续API/worker生产部署按目标要求另行实现。当前Compose不包含数据库、API、队列或监控。
+状态：2026-10-24。本节保留单机SDK/CLI容器命令；新增本机API、SQLite与spawn worker的运行方法见[托管手册](../03-development/managed-research.md)。当前Compose不编排managed数据库/API/worker、托管队列或监控；公司OIDC和云基础设施部署仍待建。
 
 ## 1. 本地与容器前置
 
@@ -46,6 +46,8 @@ docker compose --project-directory . --env-file .env -f deploy/docker/compose.ya
 保留代码SHA、依赖锁hash、镜像digest、配置版本、环境、运行者和检查结果。包仍为0.7.0来源版本，发布自有产物前制定独立版本；禁止把此分支作为原始官方wheel发布。
 
 ## 4. 未来服务部署要求（待建）
+
+本机managed API只能绑定127.0.0.1。运营者维护模板、批准标的/来源和准入额度，分别发放author/reviewer/operator/evaluation scopes；API与worker以独立进程共享同一本地SQLite和artifact root，目录权限受控，worker并发配置保持一致。恢复需新目录与新凭据；不要把本地服务映射公网或声称已通过云准入。目标环境重新构建镜像并执行验收，本轮仅重验Python安装包，没有重新测量镜像/云部署。
 
 公司内网入口/OIDC、独立API与worker、托管PostgreSQL/队列/对象存储、secret manager、指标日志、备份；dev/test/staging/prod独立凭据与数据。先迁移schema，再灰度服务，数据库用expand/contract保持旧版本兼容。禁止SQLite共享盘承担集群状态。
 

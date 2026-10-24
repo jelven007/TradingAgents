@@ -1,6 +1,6 @@
 # 测试策略与质量门禁
 
-状态：已有离线核心测试，平台测试为后续建设。覆盖以[追踪矩阵](../01-requirements/traceability.md)为准，不以测试总数替代业务验收。
+状态：2026-10-24，核心及本地托管流程已有离线测试；生产平台/真实金融效果另验收。覆盖以[追踪矩阵](../01-requirements/traceability.md)为准，逐轮至少专项+全量回归+lint/docs门禁，证据见[迭代记录](../03-development/iteration-log.md)。
 
 ## 1. 分层与执行
 
@@ -18,9 +18,13 @@
 
 输入：规范日期、拒绝未来日、ticker身份、路径、跨市场币种。数据：采集时点与可知时点分离，历史财务/新闻/社交/记忆不能越界；错误返回不可用而非虚构行情。图：全部选定分析师报告后才辩论，工具历史隔离，轮次上限可结束，深浅模型配置正确。输出：五档评级、REVIEW、结构化回退、中文格式标签，分节/完整HTML均可读。
 
-恢复：中断后节点续跑且不重复接受决策；上游checkpoint签名不匹配需新跑；本次src移动不能使资源或架构扫描失效。已有用例主要涵盖上述核心，不证明服务化租约及多租户正确性。
+恢复：中断后节点续跑且不重复接受决策；上游checkpoint签名不匹配需新跑；src移动不能使资源或架构扫描失效。本地新增用例验证spawn进程超时/取消/崩溃、租约续期/重领、旧attempt拒绝、预算unknown、固定hash对象恢复；不证明云队列、生产多机或RPO/RTO。
 
 ## 3. 平台必增用例
+
+本地已执行：`test_research_mandate.py`、`test_evidence.py`、`test_research_quality.py`、`test_report_lifecycle.py`、`test_managed_tasks.py`、`test_research_evaluation.py`及system managed服务/真实图。覆盖输入、消费证据/hash、硬规则/自审、并发幂等/预算/租约、挂起与崩溃进程、实际loopback HTTP权限、准入与发布控制、一次性对账、完整分母、前瞻时间门禁、同币种同窗口收益、短窗口interim、篡改和恢复。
+
+正向前瞻时点测试使用明确合成时钟，行情/模型是离线替身；真实图用于验证接线而非研究有效性。`loopback_network`仅解禁127.0.0.1，其他socket与curl外网阻断保留。下面的云队列/outbox/下载/真实外部部分仍为待增门禁，不将本地HTTP测试归入外网integration。
 
 创建任务同键同请求返回原任务、同键异请求409；outbox投递后崩溃；重复队列消息；worker kill、租约过期、旧fencing提交；取消与完成竞争；预算预留并发、未知usage、重试费用；报告对象上传失败、hash错、状态提交冲突；跨租户任务/证据/报告/下载；固定版本复核；快照重放和known_at未知；实验记忆隔离。
 

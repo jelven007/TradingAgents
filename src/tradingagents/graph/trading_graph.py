@@ -3,6 +3,7 @@ import json
 import logging
 import os
 from contextlib import contextmanager
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,8 @@ from tradingagents.dataflows.config import run_config, run_config_context, set_c
 from tradingagents.dataflows.date_window import get_current_date, is_historical
 from tradingagents.dataflows.symbols import safe_ticker_component
 from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.domain.research import mandate_from_config
+from tradingagents.infrastructure.evidence import record_evidence
 from tradingagents.llm_clients import create_tier_client, tier_provider
 from tradingagents.memory import TradingMemoryLog, settlement
 from tradingagents.memory.reflection import Reflector
@@ -67,7 +70,13 @@ class TradingAgentsGraph:
             callbacks: Optional list of callback handlers (e.g., for tracking LLM/tool stats)
         """
         self.debug = debug
-        self.config = config or DEFAULT_CONFIG
+        self.config = deepcopy(config if config is not None else DEFAULT_CONFIG)
+        mandate = mandate_from_config(self.config)
+        if mandate is not None:
+            mandate.validate_run(mandate.ticker, mandate.analysis_date, mandate.asset_type)
+            self.config["research_mandate"] = mandate.model_dump(mode="json")
+            self.config["holding_period_days"] = mandate.prediction_horizon_trading_days
+            self.config["benchmark_ticker"] = mandate.benchmark
         self.callbacks = callbacks or []
 
         set_config(self.config)
@@ -125,7 +134,11 @@ class TradingAgentsGraph:
         graph regardless of entry point.
         """
         identity = resolve_instrument_identity(ticker)
-        return build_instrument_context(ticker, asset_type, identity, trade_date)
+        context = build_instrument_context(ticker, asset_type, identity, trade_date)
+        record_evidence("yfinance", "instrument_context",
+                        {"ticker": ticker, "asset_type": asset_type, "trade_date": trade_date},
+                        context)
+        return context
 
     def _memory_as_of(self, trade_date) -> str | None:
         """Point-in-time cutoff for past-context lessons (#1251).
@@ -181,6 +194,9 @@ class TradingAgentsGraph:
         PortfolioRating enum.
         """
         trade_date = _validate_trade_date(trade_date)
+        mandate = mandate_from_config(self.config)
+        if mandate is not None:
+            mandate.validate_run(company_name, trade_date, asset_type)
 
         with run_config(self.config), \
                 self.checkpoint_scope(company_name, trade_date, asset_type, portfolio) as thread_id_value:
@@ -297,13 +313,19 @@ class TradingAgentsGraph:
         memory log's lessons are not here: the graph's Memory Log step settles
         and loads them alongside the analysts (see ``_memory_step``).
         """
-        return self.propagator.create_initial_state(
+        mandate = mandate_from_config(self.config)
+        if mandate is not None:
+            mandate.validate_run(company_name, trade_date, asset_type)
+        state = self.propagator.create_initial_state(
             company_name,
             trade_date,
             asset_type=asset_type,
             instrument_context=self.resolve_instrument_context(company_name, asset_type, trade_date),
             portfolio_context=portfolio.render(company_name) if portfolio is not None else "",
         )
+        if mandate is not None:
+            state["research_mandate"] = mandate.model_dump(mode="json")
+        return state
 
     def _memory_step(self, state):
         """The graph's Memory Log step, alongside the analysts (#1428): settle every
@@ -318,7 +340,8 @@ class TradingAgentsGraph:
         note = ""
         try:
             # Another run settling the same log does the work; this one goes on.
-            done = self.settle_all_pending(wait=False)
+            done = (self.settle_all_pending(wait=False) if self.config.get("settle_during_run", True)
+                    else settlement.Settlement())
             if done.failed:
                 note = (f"{len(done.failed)} past decision(s) could not be settled this run "
                         "and stay pending.")
@@ -332,6 +355,9 @@ class TradingAgentsGraph:
             logger.warning("Reading the memory log failed: %s", exc)
             past_context = ""
             note = note or f"The memory log could not be read this run ({type(exc).__name__})."
+        record_evidence("memory", "past_context",
+                        {"ticker": state["company_of_interest"], "date": state["trade_date"]},
+                        past_context)
         return {"past_context": past_context, "memory_note": note}
 
     def settle_pending(self, company_name) -> settlement.Settlement:
@@ -463,6 +489,8 @@ class TradingAgentsGraph:
             "final_rating": run_rating(final_state),
             "run_settings": self.run_settings(),
         }
+        if final_state.get("research_mandate"):
+            entry["research_mandate"] = final_state["research_mandate"]
 
         # A ticker that would escape the results directory is rejected.
         safe_ticker = safe_ticker_component(final_state["company_of_interest"])

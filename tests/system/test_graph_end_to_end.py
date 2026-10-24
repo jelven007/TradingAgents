@@ -387,3 +387,215 @@ def test_the_memory_step_reads_lessons_as_of_the_trade_date_and_settles_once(tmp
 
     assert asked == ["2026-01-20", "2026-01-20"]
     assert (tmp_path / "log.md").read_text() == log_after_first
+
+
+def test_research_contract_survives_graph_and_controls_settlement(tmp_path, monkeypatch, offline):
+    mandate = {
+        "ticker": "NVDA", "analysis_date": TRADE_DATE,
+        "prediction_horizon_trading_days": 20, "benchmark": "QQQ",
+        "quote_currency": "USD", "valid_until": "2026-02-10",
+    }
+    graph = _graph(tmp_path, monkeypatch, ScriptedModel(structured=True),
+                   research_mandate=mandate)
+    assert graph.config["holding_period_days"] == 20
+    assert graph.config["benchmark_ticker"] == "QQQ"
+    state, rating = graph.propagate("NVDA", TRADE_DATE)
+    assert state["research_mandate"]["prediction_horizon_trading_days"] == 20
+    assert rating == "Overweight"
+    graph.save_reports(state, "NVDA", tmp_path / "report")
+    assert "benchmark QQQ" in (tmp_path / "report/complete_report.md").read_text()
+    with pytest.raises(ValueError, match="do not match"):
+        graph.propagate("NVDA", "2026-01-08")
+
+
+def test_managed_runs_capture_all_consumed_sources_and_isolate_experiments(tmp_path, monkeypatch, offline):
+    import json
+
+    from tradingagents.application.runs import RunScope, execute_research
+    from tradingagents.domain.research import ResearchMandate
+    from tradingagents.infrastructure.artifacts import read_verified
+    from tradingagents.infrastructure.evidence import verify_bundle
+
+    monkeypatch.setattr(trading_graph, "create_tier_client",
+                        lambda config, tier, **k: _Client(ScriptedModel(structured=True)))
+    mandate = ResearchMandate(ticker="NVDA", analysis_date=TRADE_DATE,
+                              prediction_horizon_trading_days=20, benchmark="QQQ",
+                              quote_currency="USD", valid_until="2026-02-10")
+    outputs = [execute_research(tmp_path, RunScope("internal", experiment, "task", "attempt1"),
+                                mandate, DEFAULT_CONFIG) for experiment in ("control", "candidate")]
+    assert outputs[0].path != outputs[1].path
+    for result in outputs:
+        run = json.loads(read_verified(result.path / "run.json", result.manifest_sha256))
+        assert run["rating"] == "Overweight"
+        evidence = verify_bundle(result.path / "evidence", result.evidence_sha256)
+        methods = {r["method"] for r in evidence["records"]}
+        assert set(router.VENDOR_METHODS) <= methods
+        assert {"get_verified_market_snapshot", "instrument_context", "past_context",
+                "sentiment_prompt_input"} <= methods
+        assert (result.path / "memory/decisions.md").read_text().count("ENTRY_END") == 1
+        for file, ref in run["files"].items():
+            read_verified(result.path / file, ref)
+    with pytest.raises(FileExistsError):
+        execute_research(tmp_path, RunScope("internal", "control", "task", "attempt1"),
+                         mandate, DEFAULT_CONFIG)
+
+
+def test_real_graph_output_has_quality_checks_and_requires_fixed_version_review(tmp_path, monkeypatch, offline):
+    import json
+
+    from tradingagents.application.runs import RunScope, execute_research
+    from tradingagents.domain.research import ResearchMandate
+    from tradingagents.infrastructure.reports import ReportStore
+
+    monkeypatch.setattr(trading_graph, "create_tier_client",
+                        lambda config, tier, **k: _Client(ScriptedModel(structured=True)))
+    cfg = {**DEFAULT_CONFIG, "research_policy": {"approved_tickers": ["NVDA"]},
+           "source_licenses": dict.fromkeys(
+               ("yfinance", "sec_edgar", "stocktwits", "reddit", "fred", "polymarket"), "fixture-approved")}
+    mandate = ResearchMandate(ticker="NVDA", analysis_date=TRADE_DATE,
+                              prediction_horizon_trading_days=20, benchmark="QQQ",
+                              quote_currency="USD", valid_until="2099-01-01")
+    result = execute_research(tmp_path, RunScope("internal", "test", "task", "attempt"),
+                              mandate, cfg)
+    quality = json.loads((result.path / "quality.json").read_bytes())
+    assert quality["status"] == "needs_review"
+    assert quality["calculations"][0]["close"] == "100.5"
+    assert "unverified_currency" in {i["code"] for i in quality["issues"]}
+    assert "blocked" not in (result.path / "report/quality.md").read_text()
+    manifest = json.loads((result.path / "run.json").read_bytes())
+    assert manifest["implementation"]["sources"]["agents/schemas.py"]
+    store = ReportStore(tmp_path / "reports.db")
+    report = store.register(result.path, result.manifest_sha256, "analyst")
+    assert store.get(report)["status"] == "draft"
+    store.transition(report, "approved", "reviewer", "Fixture review only, not financial validation",
+                     acknowledgements=[i["code"] for i in quality["issues"]])
+    assert store.transition(report, "published", "publisher", "Local fixture release")["status"] == "published"
+
+
+@pytest.mark.parametrize("terminal", ["complete", "cancel", "budget"])
+def test_managed_task_accepts_only_active_budgeted_real_graph_result(
+    tmp_path, monkeypatch, offline, terminal,
+):
+    from tradingagents.application.runs import RunScope, execute_research
+    from tradingagents.application.worker import BudgetCallback
+    from tradingagents.domain.tasks import TaskInput
+    from tradingagents.infrastructure.tasks import BudgetExceeded, LeaseLost, TaskStore
+
+    models = []
+
+    def factory(config, tier, **kwargs):
+        assert kwargs["callbacks"]
+        assert config["llm_max_retries"] == 0 and config["max_tokens"] == 4096
+        model = ScriptedModel(callbacks=kwargs["callbacks"])
+        models.append(model)
+        return _Client(model)
+
+    monkeypatch.setattr(trading_graph, "create_tier_client", factory)
+    payload = TaskInput.model_validate({
+        "workspace": "internal", "experiment": "test", "config": DEFAULT_CONFIG,
+        "mandate": {"ticker": "NVDA", "analysis_date": TRADE_DATE,
+                    "prediction_horizon_trading_days": 5, "benchmark": "SPY",
+                    "quote_currency": "USD", "valid_until": "2099-01-01"},
+        "limits": {"budget_microusd": 100_000_000},
+    })
+    store = TaskStore(tmp_path / "tasks.db")
+    task = store.submit(payload, "analyst", "same")
+    row = store.claim("worker")
+    result = execute_research(
+        tmp_path, RunScope("internal", "test", task, row["attempt"]),
+        payload.mandate, row["payload"]["config"],
+        callbacks=[BudgetCallback(store, task, row["attempt"])],
+        expected_implementation=row["implementation"],
+    )
+    ledger = store.get(task)["calls"]
+    assert len(ledger) == sum(len(m.calls) for m in models) > 0
+    assert all(c["actual_microusd"] is None for c in ledger)
+    if terminal == "cancel":
+        store.cancel(task, "operator")
+        with pytest.raises(LeaseLost):
+            store.complete(task, row["attempt"], result.path, result.manifest_sha256)
+    elif terminal == "budget":
+        # Exhaust a bounded task after a graph returns; even swallowed callback
+        # errors cannot permit acceptance.
+        with pytest.raises(BudgetExceeded):
+            for i in range(1000):
+                store.reserve_call(task, row["attempt"], f"extra-{i}", "test")
+        with pytest.raises(BudgetExceeded):
+            store.complete(task, row["attempt"], result.path, result.manifest_sha256)
+    else:
+        store.complete(task, row["attempt"], result.path, result.manifest_sha256)
+        assert store.get(task)["manifest_hash"] == result.manifest_sha256
+        with pytest.raises(LeaseLost):
+            store.complete(task, row["attempt"], result.path, result.manifest_sha256)
+        assert sum(e["action"] == "succeeded" for e in store.get(task)["events"]) == 1
+
+
+def test_real_graph_service_review_evaluation_and_restore_closed_loop(tmp_path, monkeypatch, offline):
+    from tradingagents.application.runs import RunScope, execute_research
+    from tradingagents.application.service import ResearchService
+    from tradingagents.application.worker import BudgetCallback
+    from tradingagents.domain.evaluation import ExperimentPlan, ObservationInput
+    from tradingagents.domain.service import ReviewRequest, SubmitRequest
+    from tradingagents.infrastructure.identity import SCOPES
+    from tradingagents.infrastructure.recovery import backup, restore
+
+    service = ResearchService(tmp_path / "db", tmp_path / "artifacts", {
+        "internal": {"daily": {"config": {
+            "research_policy": {"approved_tickers": ["NVDA"]},
+            "source_licenses": dict.fromkeys(
+                ("yfinance", "sec_edgar", "stocktwits", "reddit", "fred", "polymarket"), "fixture"),
+        }, "limits": {"budget_microusd": 100_000_000}, "workspace_budget_microusd": 300_000_000}},
+    })
+    _, token = service.identities.issue("analyst", "internal", SCOPES)
+    _, reviewer_token = service.identities.issue("reviewer", "internal", SCOPES)
+    analyst, reviewer = (service.identities.authenticate(t) for t in (token, reviewer_token))
+    mandate = {"ticker": "NVDA", "analysis_date": TRADE_DATE, "benchmark": "SPY",
+               "prediction_horizon_trading_days": 5, "quote_currency": "USD", "valid_until": "2099-01-01"}
+    sessions = ["2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16", "2026-01-20"]
+    plan = service.plan_experiment(analyst, ExperimentPlan.model_validate({
+        "workspace": "internal", "experiment": "closed-loop", "mode": "diagnostic",
+        "price_basis": "unadjusted_close", "calendar_source": "offline fixture",
+        "calendar_evidence": "Explicit synthetic sessions; no historical-model knowledge certification",
+        "samples": [{"key": k, "mandate": mandate, "sessions": sessions} for k in ("sample", "absent")],
+    }))
+    task = service.submit(analyst, SubmitRequest.model_validate({
+        "workspace": "internal", "experiment": "closed-loop", "template": "daily", "mandate": mandate,
+    }), "sample")["id"]
+    row = service.tasks.claim("offline-runner")
+    monkeypatch.setattr(trading_graph, "create_tier_client",
+                        lambda config, tier, **k: _Client(ScriptedModel(callbacks=k["callbacks"])))
+    payload = row["payload"]
+    result = execute_research(
+        service.root, RunScope("internal", "closed-loop", task, row["attempt"]),
+        payload["mandate"], payload["config"],
+        callbacks=[BudgetCallback(service.tasks, task, row["attempt"])],
+        expected_implementation=row["implementation"],
+    )
+    service.tasks.complete(task, row["attempt"], result.path, result.manifest_sha256)
+    report = service.register(analyst, task)["id"]
+    quality = service.report(reviewer, report)["quality"]
+    service.review(reviewer, report, ReviewRequest(
+        action="approved", reason="Offline full graph review; not a financial effectiveness claim",
+        acknowledgements=tuple(i["code"] for i in quality["issues"]),
+    ))
+    service.review(reviewer, report, ReviewRequest(action="published", reason="Local fixture release"))
+    prediction = service.register_prediction(analyst, plan["id"], task, report)
+    observation = service.observe(analyst, prediction["id"], ObservationInput.model_validate({
+        "entry_session": sessions[0], "exit_session": sessions[-1],
+        "asset": {"symbol": "NVDA", "currency": "USD", "basis": "unadjusted_close",
+                  "entry": "100.5", "exit": "110.55"},
+        "benchmark": {"symbol": "SPY", "currency": "USD", "basis": "unadjusted_close",
+                      "entry": "200", "exit": "210"},
+        "source": "offline prices", "source_payload": "Synthetic retained prices; USD",
+    }))
+    assert observation["result"]["excess_return"] == "0.05"
+    assert prediction["manifest_sha256"] == result.manifest_sha256
+    summary = service.experiment(analyst, plan["id"])
+    assert summary["planned_total"] == 2 and summary["final_samples"] == summary["pending_samples"] == 1
+    assert summary["rating_counts"] == {"Overweight": 1}
+    ref = backup(service.tasks.path, service.root, tmp_path / "backup")
+    restored_path = restore(tmp_path / "backup", ref, tmp_path / "restored")
+    restored = ResearchService(restored_path, tmp_path / "restored/artifacts", {})
+    _, new_token = restored.identities.issue("analyst", "internal", SCOPES)
+    assert restored.experiment(restored.identities.authenticate(new_token), plan["id"]) == summary
+    assert restored.tasks.get(task)["calls"] and service.operations(analyst)["unknown_cost_calls"] > 0

@@ -1,6 +1,6 @@
 # 生产系统总体方案
 
-状态：目标设计，尚未实现 API、队列、数据库与工作台。技术选型用于后续开发；当前可执行代码仍是 CLI/SDK。依据 [ADR-0001](adr/0001-modular-monolith.md) 先采用模块化单体与独立 worker 进程。
+状态：2026-10-24，生产目标与本地实现并列。已有SQLite任务/复核/身份/评估存储、loopback JSON API、managed CLI及spawn worker，操作见[本地手册](../03-development/managed-research.md)。下图的PostgreSQL、托管队列、对象存储和工作台仍是目标。依据 [ADR-0001](adr/0001-modular-monolith.md) 采用模块化单体与独立 worker。
 
 ## 1. 系统边界
 
@@ -19,7 +19,7 @@ flowchart LR
 
 控制面选择 FastAPI + Pydantic；持久任务与审计选择 PostgreSQL；对象存储使用公司 S3 兼容服务；队列先选公司托管 Redis Streams（consumer group + pending reclaim），如公司已有标准队列则替换适配器。队列只承担投递，数据库是状态真相；消息允许至少一次交付。
 
-这些组件是候选目标。不得在现有 Compose 中声称 API/DB 已可运行；平台实现前使用单机隔离 CLI 试运行。
+这些云组件是候选目标，现有 Compose 不包含它们。本地实现直接从SQLite领取任务、存储hash固定文件，API仅127.0.0.1且不运行图；worker另起进程，不使用Redis/outbox。系统尚未具备云服务准入条件。
 
 ## 2. 逻辑分层与路径演进
 
@@ -31,9 +31,11 @@ flowchart LR
 | 研究核心 | agents、graph | 保留现有路径，逐步通过 application adapter 封装 |
 | 基础设施 | llm_clients、dataflows、memory | `infrastructure/` 实现任务 repository、对象存储、队列、身份和观测适配器 |
 
-目标目录只在具体实现时创建；目前没有空模块冒充功能。现有 graph 直接依赖 dataflows、llm_clients、memory，尚未完全实现上述依赖倒置，应通过渐进封装迁移，避免重命名全部算法模块。
+已实现路径为 `interfaces/api.py`、`application/{runs,worker,service}.py`、`domain/{research,quality,tasks,service,evaluation}.py` 与 `infrastructure/`。现有 graph 仍直接依赖 dataflows、llm_clients、memory，领域标识复用本地artifact校验器，尚未完全实现目标依赖倒置；后续替换云适配器时渐进迁移。
 
 ## 3. 一致性、幂等与执行
+
+以下编号是云端目标。本地实际幂等键为 `(workspace, author, idem_key)`，相同输入复用，冲突400；条件领取/预算预留/完成在SQLite事务内，报告登记及访问审计是独立操作，并不宣称与任务同一事务原子提交。实验准入额外保证同一计划样本只有一个任务，取消不释放累计工作空间准入额度。
 
 1. API 在同一事务创建任务、预算预留、审计与 outbox；唯一约束 `(workspace_id, idempotency_key)`，规范化请求哈希不同则409。
 2. dispatcher 读取 outbox 投递队列，成功后标记；投递和标记间崩溃会重复消息，worker 通过数据库领取排除重复执行。
@@ -44,9 +46,9 @@ flowchart LR
 
 ## 4. 超时、预算、恢复
 
-任务总 deadline 15分钟建议值；供应商 HTTP timeout、SDK retries、图轮次都是子预算，不能相互叠加绕过总时限。预算按调用前预留、返回后核销；unknown usage 保留估算并标记待对账。取消采用协作式检查，停止后续节点，保留已发出的调用。
+任务总 deadline 15分钟为生产建议值，本地TaskLimits默认1800秒。spawn父进程续租并在取消/超时后终止子进程；子进程自查租约。逐次模型调用前预留预算、SDK内部重试为0、总预算标志独立阻止结果接受；费用unknown待一次性账单对账。预留额不是实际价格，已发出的调用仍可能计费。
 
-现有 checkpoint 在成功时清除，且其签名包含图形状和设置；目标恢复同时冻结代码、prompt、依赖与 snapshot 版本。S1 先由单任务独立工作目录保护恢复，S2 评估集中 checkpoint 或同一 worker 亲和；不把 SQLite 文件放在多副本共享网络盘。
+旧SDK checkpoint行为保留；托管attempt从新目录运行，冻结输入和实现指纹并在执行前后校验，不继承未接受的checkpoint或其他实验记忆。备份恢复校验固定hash、重定位副本路径、撤销凭据并取消副本的queued/running任务，不自动外部重跑。不把SQLite文件放在多副本共享网络盘。
 
 ## 5. 部署与容量
 
