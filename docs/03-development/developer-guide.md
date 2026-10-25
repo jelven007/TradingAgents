@@ -1,6 +1,6 @@
 # 开发指南
 
-状态：当前工程可执行规则。生产平台开发范围及依赖见[实施计划](implementation-plan.md)。
+状态：2026-10-25当前开发操作；面向工程，由工程责任角色依据pyproject、锁文件、CI和源码维护。命令、接口、打包或分层变化后及每次合并前复核。生产待建范围见[实施计划](implementation-plan.md)，历史验证不等于本次命令结果。
 
 ## 1. 环境与启动
 
@@ -16,6 +16,8 @@ tradingagents --help
 
 先安装再 `python -m cli.main`；SDK示例为 `python examples/analyze.py`。真实分析需配置供应商凭据，默认测试不需要真实密钥。设置 .env 权限600，不把凭据写入代码或示例。
 
+启动当前本机工作台：`python -m cli.main managed --templates config/examples/managed-templates.json serve --port 8783`。数据库/对象默认在runtime；首次创建管理员，已有安装保留原账号，模型在设置中测试/保存。只监听loopback，不能直接映射公网。完整操作见[工作台](web-workbench.md)。
+
 团队复现建议使用uv 0.13.5与提交的锁文件：
 
 ```bash
@@ -29,13 +31,26 @@ uv export --frozen --no-dev --no-emit-project --format requirements-txt --output
 
 CLI只解析输入、选择配置并展示；graph负责编排、状态和恢复；agent只基于明示数据生成分析；数据工具通过router到vendor；模型客户端负责能力兼容。禁止agent直接调用yfinance，避免数据错误被当作金融事实。
 
+`application/service.py`是授权与用例入口，`runs.py`选择完整或快捷graph，`guided_stock.py`固定四环节；真实行情适配器在`dataflows/guided_stock.py`，模型客户端由factory创建。`securities.py`读取包资源并按权限分页；`investor.py`只读固定正文/证据，不新增模型论据。认证、模型/研究配置、任务、报告、关注和评估存储在infrastructure。
+
+前端修改`web/src/`；Python包内`src/tradingagents/web/`是必须提交的运行资源，禁止手改bundle。开发需要Node22，运行已安装包无需Node：
+
+```bash
+cd web
+npm ci
+npm run build
+# 开发预览：先启动8783后npm run dev，接口由Vite代理到loopback服务。
+```
+
+构建后核对3个包资源与源码产物一致；代理必须包含research、instruments、watchlist和demo路径。证券目录用`scripts/build_stock_catalog.py`从源目录构建，只在需要更新目录时联网；旧缓存不能证明新目录日期，应先保留旧产物再使用新的缓存目录重取并核对完整性。
+
 配置从 `deepcopy(DEFAULT_CONFIG)`开始，避免浅拷贝嵌套字典互相影响。每并发任务创建独立graph，不共享 `_checkpointer_ctx`。已有 `run_config`/ContextVar有助于配置隔离，但不替代任务、存储及实例隔离。
 
 新vendor需注册工具能力、错误分类、时间窗口、明确fallback和来源，不增加用户未选择的隐藏fallback；新模型需验证structured output、tools、reasoning/max_tokens/temperature、endpoint和API key映射。
 
 ## 3. 开发流程与提交
 
-从需求ID创建任务，描述边界、实现、迁移、验收与风险。小步提交，先明确接口与失败路径，必要时用离线替身复现后修复。保留许可证。分支使用 `feature/<id>-description` 或 `fix/<id>-description`；本次迁移尚未提交或推送。
+从需求ID创建任务，描述边界、实现、迁移、验收与风险。小步提交，先明确接口与失败路径，必要时用离线替身复现后修复。保留许可证。分支使用`feature/<id>-description`或`fix/<id>-description`；本机代码积累在chore/production-foundation，推送/合并应先确认实际远端状态，不将历史“未提交”当作当前事实。
 
 PR应写“何种输入以前如何、现在如何”，附需求ID、验证、兼容/迁移、回滚。架构变化新增ADR；数据库变更采用expand→migrate→contract，禁止与旧版本互不兼容的单步破坏性变更。
 
@@ -50,6 +65,8 @@ make build PYTHON=.venv/bin/python
 ```
 
 默认测试包含系统用例，常规验证通过后无需重复运行system；单独命令用于定位与开发。测试要验证业务不变量、异常与边界，避免镜像实现的断言。不因目录重排批量改提示词、格式或业务行为。
+
+UI变更需实际桌面/手机/横屏验证选择、错误、报告和刷新；Python回归通过不能替代浏览器。真实模型测试与离线fixture分别记录，模型测试上限和费用预留不是完整研究能力验证。CI应构建前端并检查提交的bundle未漂移；包smoke必须从仓库外读取页面及证券目录。
 
 ## 5. 新增能力的完成定义
 

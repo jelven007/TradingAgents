@@ -1,12 +1,14 @@
 # 配置、优先级与环境
 
-状态：以下“当前配置”已由源码实现；预算、租户、API设置属于未来平台契约，不添加无效环境变量。
+状态：2026-10-25当前配置参考，面向工程/管理员，工程责任角色依据DEFAULT_CONFIG、领域DTO和存储实现维护，配置字段或版本规则变化时及合并前复核。SDK/CLI、本机模板和浏览器版本化设置分别说明，不添加无效环境变量。
 
 ## 1. 入口差异与优先级
 
 包导入时从当前工作目录查找 `.env`，然后加载 `.env.enterprise`，均不覆盖已有shell变量；`DEFAULT_CONFIG`在导入时建立，后续修改环境需调用 `build_default_config()`重新读取。SDK显式传入config优先，CLI另有flags/env/prefs交互规则，不能当作所有入口通用优先级。
 
 CLI每个flag跳过其对应提问；受支持 `TRADINGAGENTS_*` 环境值跳过相应配置提问；剩余问题使用上次CLI偏好作为默认，最后使用内置默认。无TTY缺少必要答案会提前失败。嵌套SDK配置用deepcopy，vendor子字典由dataflows按一层合并。
+
+本机服务启动读取可信`--templates` JSON，与DEFAULT_CONFIG合并；当前研究模板版本覆盖可公开编辑的默认值/允许范围/限额，当前模型版本覆盖两层provider/model/endpoint，提交options只可降低限额并选择允许项。TaskStore最终固定SDK重试0、输出token上限及实现指纹。旧任务读取冻结模型版本，不随“保存设置”回写；有变更的评估计划需新实验。
 
 ## 2. 当前环境变量
 
@@ -49,4 +51,20 @@ ChatGPT订阅登录是上游支持的个人研究模式，生产服务优先使�
 
 ## 5. 环境划分
 
-local可交互、独立目录；test强制离线、临时路径；受控CLI试运行按操作者/实验隔离缓存、结果、记忆与checkpoint；未来staging/production经版本注册和secret manager设置。生产API的预算、身份、队列和数据库配置在具体实现时定义，不将设计参数冒充已生效配置。
+local可交互、独立runtime目录；test强制离线临时路径；受控CLI按实验隔离；未来staging/production由组织注册和secret manager提供。生产队列/OIDC配置尚未实现，不将设计参数冒充生效变量。
+
+## 6. 本机模板、路线和密钥
+
+| 设置 | 来源与默认 | 约束 |
+|---|---|---|
+| `research_policy.allow_listed_stocks` | 可信文件默认false，示例daily为true | 公共研究模板不能扩大目录授权 |
+| `approved_tickers`、`source_licenses` | 可信文件策略/许可；公开模板可管理批准代码 | 许可unknown不自动通过，禁止伪造许可标签 |
+| `options.execution_mode` | API缺省full，股票工作台缺省guided_stock | portfolio_review/crypto用完整路线 |
+| `options.stock_question` | understand/buy/hold/sell | 股票意图，不自动生成账户估值 |
+| `options.display_currency` | USD或CNY，UI默认USD | 原始报价由股票决定，FX失败保留原价 |
+| 推荐benchmark | 美股SPY、A股000300.SS、港股^HSI | 可修改，固定入任务 |
+| `TaskLimits` | 默认80次/1800秒/4096tokens/10,000,000微美元 | 示例daily40次/900秒，快捷UI8次；预算需容纳8次500,000预留 |
+| `settings/models` | 版本化quick/deep provider/model/base_url/api_version | expected_version冲突409；普通研究员不能写 |
+| `api_key` / `clear_api_key` | 密码字段，只接受写入，不回显 | 空值且目的地址相同保留；地址变化不携带旧密钥 |
+
+浏览器连接测试每层只发1次、最多64输出tokens、15秒进程等待；测试不会保存，成功后再保存配置。数据库model_revisions保留公共版本、model_credentials保留密文，旁置`*.model-key`只由本机受控文件持有。备份恢复不复制解密文件，需重新配置密钥。所有私有runtime/.env/token不提交Git。设置版本2是在本机用户授权测试后保存的实例状态，不是仓库默认密钥或配置。

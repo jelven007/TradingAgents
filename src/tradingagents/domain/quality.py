@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from tradingagents.domain.research import ResearchMandate, canonical_symbol
+from tradingagents.domain.research import ResearchMandate, canonical_date, canonical_symbol
 from tradingagents.infrastructure.artifacts import hash_component, read_verified
 from tradingagents.infrastructure.evidence import verify_bundle
 
@@ -21,6 +21,7 @@ class ResearchPolicy(BaseModel):
 
     version: str = Field(default="local-research-v1", min_length=1, max_length=100)
     approved_tickers: tuple[str, ...] = ()
+    allow_listed_stocks: bool = False
     max_price_age_calendar_days: int = Field(default=7, strict=True, ge=0, le=31)
     require_licensed_sources: bool = True
     long_only: bool = True
@@ -32,8 +33,8 @@ class ResearchPolicy(BaseModel):
         return tuple(canonical_symbol(symbol) for symbol in symbols)
 
 
-class AllocationInput(BaseModel):
-    """Explicit valuation contract; never inferred from free-text position sizing."""
+class AllocationValuation(BaseModel):
+    """Account input; the run binds its price to captured structured evidence."""
 
     model_config = ConfigDict(extra="forbid", frozen=True, allow_inf_nan=False)
 
@@ -44,6 +45,21 @@ class AllocationInput(BaseModel):
     equity: Decimal = Field(gt=0)
     current_units: Decimal
     change_units: Decimal
+
+    @field_validator("ticker")
+    @classmethod
+    def ticker_symbol(cls, value):
+        return canonical_symbol(value)
+
+    @field_validator("valuation_date")
+    @classmethod
+    def valuation_day(cls, value):
+        return canonical_date(value)
+
+
+class AllocationInput(AllocationValuation):
+    """Explicit valuation contract with a retained evidence reference."""
+
     evidence_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
@@ -96,6 +112,8 @@ def check_research(
         add("identity_mismatch", "block", "Decision identity/date differs from the mandate.")
     if state.get("research_mandate") != mandate.model_dump(mode="json"):
         add("mandate_mismatch", "block", "Decision does not carry the frozen research mandate.")
+    if state.get("research_status") == "insufficient":
+        add("insufficient_research", "block", "Key evidence or a complete model decision is unavailable.")
     if state.get("final_rating") not in {"Buy", "Overweight", "Hold", "Underweight", "Sell"}:
         add("unparsed_rating", "block", "The recommendation is not a supported research rating.")
     if not state.get("final_trade_decision", "").strip():

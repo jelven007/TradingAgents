@@ -5,3 +5,5 @@ recursive-include config *.example *.json
 recursive-include deploy Dockerfile *.yaml
 recursive-include examples *.py
 recursive-include scripts *.py
+include web/package.json web/package-lock.json web/vite.config.js web/index.html
+recursive-include web/src *.jsx *.js *.css

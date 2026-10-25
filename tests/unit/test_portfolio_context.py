@@ -85,6 +85,7 @@ def _bare_graph(tmp_path):
                     "max_risk_discuss_rounds": 1}
     graph.memory_log = TradingMemoryLog(graph.config)
     graph.propagator = Propagator()
+    graph.callbacks = []
     graph.selected_analysts = ["market"]
     graph.settle_pending = lambda t: None
     graph.resolve_instrument_context = lambda t, a="stock", d=None: ""

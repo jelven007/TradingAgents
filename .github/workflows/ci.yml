@@ -10,6 +10,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  frontend:
+    name: frontend bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install and build the committed frontend
+        working-directory: web
+        run: |
+          npm ci
+          npm run build
+      - name: Verify packaged assets match their source
+        run: git diff --exit-code -- src/tradingagents/web
+
   test:
     name: tests (py${{ matrix.python-version }}${{ matrix.tz && format(', {0}', matrix.tz) || '' }})
     runs-on: ubuntu-latest
@@ -62,7 +80,7 @@ jobs:
           # Catches undeclared runtime deps (e.g. #994 python-dotenv): a bare
           # install must import the package and the CLI module.
           cd /tmp
-          /tmp/wheel-smoke/bin/python -c "import importlib.resources as r, tradingagents, cli.main; assert (r.files('cli') / 'static' / 'welcome.txt').is_file(); assert (r.files('tradingagents') / 'assets' / 'tauric-logo.svg').is_file(); print('clean-install import OK')"
+          /tmp/wheel-smoke/bin/python -I -c "import importlib.resources as r, tradingagents, cli.main; from tradingagents.application.securities import catalog, security; assert (r.files('cli') / 'static' / 'welcome.txt').is_file(); assert (r.files('tradingagents') / 'assets' / 'tauric-logo.svg').is_file(); assert all((r.files('tradingagents') / 'web' / name).is_file() for name in ('index.html', 'app.js', 'style.css')); assert len(catalog()[1]) == 21271; assert security('NVDA')['quote_currency'] == 'USD'; assert security('600519.SS')['quote_currency'] == 'CNY'; print('clean-install import, frontend and stock catalog OK')"
           /tmp/wheel-smoke/bin/tradingagents --help
 
   lint:

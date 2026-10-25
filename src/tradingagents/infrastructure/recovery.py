@@ -18,6 +18,7 @@ from tradingagents.infrastructure.artifacts import (
 )
 from tradingagents.infrastructure.evaluations import EvaluationStore
 from tradingagents.infrastructure.evidence import verify_bundle
+from tradingagents.infrastructure.model_settings import ModelSettingsStore
 from tradingagents.infrastructure.reports import ReportStore, database, verify_run
 from tradingagents.infrastructure.tasks import TaskStore
 
@@ -44,6 +45,7 @@ def validate_database(path: Path):
     for report in reports:
         report_store.get(report)
     EvaluationStore(path).validate()
+    ModelSettingsStore(path).validate()
 
 
 def backup(db_path: Path, artifact_root: Path, destination: Path) -> str:
@@ -87,7 +89,8 @@ def backup(db_path: Path, artifact_root: Path, destination: Path) -> str:
     files["store.sqlite"] = digest(snapshot.read_bytes())
     return write_json_once(destination / "backup.json", {
         "schema_version": 1, "created_at": utc_now(), "files": files, "runs": runs,
-        "scope": "accepted runs, report/review, task/attempt/call, evaluations, identity and access records",
+        "scope": "accepted runs, report/review, task/attempt/call, evaluations, identity, access "
+                 "and encrypted model settings; model decryption key excluded",
     })
 
 
@@ -135,6 +138,8 @@ def restore(source: Path, expected_hash: str, destination: Path) -> Path:
                        (task["id"], time.time(), "recovery_fenced",
                         json_bytes({"backup_sha256": expected_hash}).decode()))
         db.execute("UPDATE identities SET revoked=1")
+        if db.execute("SELECT 1 FROM sqlite_master WHERE name='browser_sessions'").fetchone():
+            db.execute("DELETE FROM browser_sessions")
         db.execute("""CREATE TABLE IF NOT EXISTS recovery_events
             (at TEXT NOT NULL, backup_hash TEXT NOT NULL, fenced_tasks INTEGER NOT NULL)""")
         db.execute("INSERT INTO recovery_events VALUES (?,?,?)", (now, expected_hash, len(active)))

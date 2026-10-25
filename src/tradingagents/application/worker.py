@@ -12,7 +12,10 @@ from langchain_core.callbacks import BaseCallbackHandler
 
 from tradingagents.application.runs import RunScope, execute_research
 from tradingagents.domain.tasks import TaskInput
+from tradingagents.infrastructure.model_settings import ModelSettingsStore
+from tradingagents.infrastructure.reports import ReportStore
 from tradingagents.infrastructure.tasks import LeaseLost, TaskStore
+from tradingagents.llm_clients.credentials import model_credentials
 
 
 class BudgetCallback(BaseCallbackHandler):
@@ -21,6 +24,10 @@ class BudgetCallback(BaseCallbackHandler):
 
     def __init__(self, store: TaskStore, task_id: str, attempt: str):
         self.store, self.task_id, self.attempt = store, task_id, attempt
+
+    def on_chain_start(self, serialized, inputs, *, run_id, **kwargs):
+        stage = (kwargs.get("metadata") or {}).get("langgraph_node")
+        self.store.progress(self.task_id, self.attempt, stage)
 
     def _start(self, serialized, run_id, kwargs):
         params = kwargs.get("invocation_params") or {}
@@ -66,13 +73,16 @@ def _child(db_path: str, root: str, task_id: str, attempt: str):
         row = store.get(task_id)
         store.check_lease(task_id, attempt)
         payload = TaskInput.model_validate(row["payload"])
-        result = execute_research(
-            Path(root), RunScope(payload.workspace, payload.experiment, task_id, attempt),
-            payload.mandate, payload.config, selected_analysts=payload.selected_analysts,
-            portfolio=payload.portfolio, allocation=payload.allocation,
-            callbacks=[BudgetCallback(store, task_id, attempt)],
-            expected_implementation=row["implementation"],
-        )
+        keys = ModelSettingsStore(Path(db_path)).frozen_credentials(payload.config)
+        with model_credentials(payload.config, keys):
+            result = execute_research(
+                Path(root), RunScope(payload.workspace, payload.experiment, task_id, attempt),
+                payload.mandate, payload.config, selected_analysts=payload.selected_analysts,
+                portfolio=payload.portfolio, allocation=payload.allocation,
+                allocation_valuation=payload.allocation_valuation,
+                callbacks=[BudgetCallback(store, task_id, attempt)],
+                expected_implementation=row["implementation"],
+            )
         store.complete(task_id, attempt, result.path, result.manifest_sha256)
     except Exception as exc:
         with suppress(LeaseLost):
@@ -81,12 +91,27 @@ def _child(db_path: str, root: str, task_id: str, attempt: str):
         stop.set()
 
 
+def finalize_report(store: TaskStore, root: Path, task_id: str):
+    row = store.get(task_id)
+    if row["status"] != "succeeded" or not any(
+        e["action"] == "auto_report_requested" for e in row["events"]
+    ):
+        return
+    path = Path(row["result_path"]).resolve()
+    if not path.is_relative_to(Path(root).resolve()):
+        raise ValueError("result path is outside the artifact root")
+    report_id = ReportStore(store.path).register(path, row["manifest_hash"], row["author"])
+    store.report_registered(task_id, report_id)
+
+
 def run_one(store: TaskStore, root: Path, worker: str, *, lease_seconds=30,
-            max_concurrency=2, poll_seconds=0.25, process_target=None) -> str | None:
+            max_concurrency=2, poll_seconds=0.25, process_target=None,
+            task_id: str | None = None) -> str | None:
     """Claim one task and wait bounded by its deadline; no in-process graph reuse."""
     if not 0 < poll_seconds < lease_seconds / 2:
         raise ValueError("poll interval must be positive and below half the lease")
-    row = store.claim(worker, lease_seconds=lease_seconds, max_concurrency=max_concurrency)
+    row = store.claim(worker, lease_seconds=lease_seconds, max_concurrency=max_concurrency,
+                      task_id=task_id)
     if row is None:
         return None
     task_id, attempt = row["id"], row["attempt"]
@@ -120,4 +145,5 @@ def run_one(store: TaskStore, root: Path, worker: str, *, lease_seconds=30,
             except LeaseLost:
                 # Reaping a deadline/expired lease never claims another task.
                 store.reap()
+    finalize_report(store, root, task_id)
     return task_id

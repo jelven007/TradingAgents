@@ -135,8 +135,16 @@ def test_spawned_worker_terminates_hang_or_records_crash(tmp_path, target, limit
     assert store.get(task)["status"] == status
     assert not (tmp_path / "must-not-write").exists()
     if target is _hang:
-        assert store.get(task)["calls"][0]["actual_microusd"] is None
-        assert store.get(task)["calls"][0]["status"] == "unknown"
+        result = store.get(task)
+        # The deadline includes spawn/import time. A slow startup can expire
+        # before the first reservation; that must not fabricate a model call.
+        assert len(result["calls"]) <= 1
+        for call in result["calls"]:
+            assert call["actual_microusd"] is None
+            assert call["status"] == "unknown"
+        with pytest.raises(LeaseLost):
+            store.reserve_call(task, result["attempt"], "after-timeout", "offline-provider")
+        assert store.get(task)["calls"] == result["calls"]
 
 
 def test_task_input_is_frozen_and_version_change_fails_before_graph(tmp_path):

@@ -1,6 +1,8 @@
 # 托管研究本地运行
 
-本地实现状态与逐轮检查见[迭代记录](iteration-log.md)。已有 `TradingAgentsGraph` SDK 和交互 CLI 保持兼容，新增托管入口逐步提供固定研究契约、证据、质量检查、任务与复核能力。
+状态：2026-10-25本机操作参考，面向管理员/研究员/运维，工程责任角色依据CLI、HTTP服务和存储实现维护；命令、配置或恢复变更后及合并前复核。SDK/交互CLI保持兼容，托管入口提供固定契约、证据、任务、复核和股票快捷路线。
+
+当前浏览器入口为**http://127.0.0.1:8783/**，使用原密码账号，设置为`/#settings`。启动命令：`tradingagents managed --templates config/examples/managed-templates.json serve --port 8783`。执行单独要求task:execute；POST /research组合创建、指定执行和自动报告。静态首页公开，研究数据按workspace/scopes授权，个人关注按本人隔离；旧端口进程保留，详见[工作台](web-workbench.md)。
 
 ## 契约与证据
 
@@ -16,7 +18,7 @@
 | `evidence/manifest.json` | 来源、工具名、参数、内容 hash、观察时间、许可标签 |
 | `evidence/blobs/<sha256>.json` | 实际工具返回值，重复内容只保存一份 |
 | `state.json` | 可 JSON 序列化的决策状态 |
-| `report/` | SDK 生成的 Markdown 与 HTML 报告 |
+| `report/` | 完整图Markdown/HTML，快捷图完整Markdown及质量说明 |
 | `run.json` | 完成状态、模型设置、报告与证据文件 hash |
 | `failure.json` | 失败时间及错误类型；不记录可能含密钥的异常原文 |
 
@@ -28,11 +30,11 @@
 
 ## 独立质量与固定版本复核
 
-`config["research_policy"]` 接受 `domain.quality.ResearchPolicy` 的 JSON 字段：`version`、`approved_tickers`、`max_price_age_calendar_days`、`require_licensed_sources`、`long_only`、`max_position_weight`。默认批准标的为空，默认要求来源许可标签，因此未配置的运行只形成受阻草稿。许可标签是运营者声明，不能代替供应商合同验证。
+`research_policy`字段为version、approved_tickers、allow_listed_stocks、max_price_age_calendar_days、require_licensed_sources、long_only、max_position_weight。目录授权默认false，示例daily显式启用；默认要求来源许可，unknown仅形成受阻草稿。可信文件管策略/许可，公共模板不能修改这两项；标签不能替代合同核验。
 
 数值检查读取行情适配器产出的原始结构化 OHLCV 证据，不从 LLM 自由文本猜价格。覆盖身份、研究日、未来/陈旧价格、OHLC 范围、有限值、成交量、同日价格冲突和明确的价格字段。`quality.json` 与 `report/quality.md` 保存独立规则结果及计算输入引用。无法确认的币种/披露时间、缺失来源、未绑定计算对象的自然语言结论进入人工核验；不因五档评级可解析就认定研究合格。
 
-配置的日历天陈旧阈值是本地规则，不等于已经集成交易所节假日历。当前 Yahoo 快照不提供可独立核验的币种字段，保留 null，并要求复核；账户配置计算必须有币种和当日价格证据。`AllocationInput` 明确价格、权益、当前/变化数量、日期、币种及证据 hash，使用 Decimal 计算目标名义金额和权益占比，校验只做多和集中度。SDK 的原持仓对象缺少完整估值，不能自动生成该对象。
+陈旧阈值是日历天规则，不是交易所日历。完整图旧适配器币种未知会保留null并提示；快捷行情从供应商metadata取currency，缺失/与证券原币种不同不得付费形成判断。`AllocationInput`关联价格、权益、数量、日期、币种和证据hash，以Decimal核验只做多/集中度；专业页面allocation_valuation由真实留存OHLCV绑定，不能由一般股票研究推断账户。
 
 `infrastructure.reports.ReportStore` 在 SQLite 中登记固定 `run.json` hash，提供状态：
 
@@ -60,7 +62,7 @@
 
 运营者模板以工作空间和模板名称索引，示例为[模板](../../config/examples/managed-templates.json)及[任务请求](../../config/examples/managed-request.json)。模板覆盖原SDK默认配置，在服务启动及任务提交时冻结；例子没有声明真实来源许可，因此生成的报告可能受阻。请按实际授权核定标的、数据来源与预算。工作空间预算是本地库中**所有已准入任务预算的累计上限**，取消不释放；不是月度账单限额。待执行任务数和累计预算在同一个提交事务内检查。
 
-本地身份由运营者发放随机token，数据库仅保存hash，可撤销、最长有效一天；subject统一小写ASCII标识，防止作者使用大小写变体自审。每个凭据只授予一个工作空间及明确scopes。公开入口从凭据取得操作者，不接受author/actor、任意config、模型URL、策略、路径或预算覆盖。公司OIDC、TLS网关、集中身份与账户级授权仍是生产接入工作；本机token方案不能称作OIDC验收。
+本地身份由运营者发放随机token，数据库仅保存hash，可撤销、最长有效一天；subject统一小写ASCII标识，防止作者使用大小写变体自审。每个凭据只授予一个工作空间及明确scopes。研究提交不接受author/actor、任意config、模型URL、策略、路径或预算覆盖；模型管理员另通过`settings:read/write`接口配置快速/深度模型。模型配置为不可变版本，凭据加密保存在独立表，已提交任务保留原版本；新任务使用当前版本。公司OIDC、TLS网关、集中身份与账户级授权仍是生产接入工作；本机token方案不能称作OIDC验收。
 
 ```bash
 # 可信本地运营者创建凭据。不要把token文件或运行数据库提交到Git。
@@ -80,7 +82,7 @@ worker、serve、identity-issue/revoke、backup/restore 是持有本地文件权
 
 `control pause_submissions --enabled "<reason>"` 暂停新准入；`control freeze_publication --enabled "<reason>"` 冻结发布；恢复使用 `--no-enabled`。发布控制与报告流转在同一事务检查，暂停不妨碍原幂等请求查询。控制原因和访问记录可通过独立 `audit:read` 查询；HTTP操作具有关联request_id。审计是本地追加记录，不是防管理员改写存储。
 
-`serve --port 8765`仅绑定`127.0.0.1`，worker另开进程。本机HTTP的请求body上限64KiB、连接超时5秒、最多16个请求线程。API返回JSON，不提供自动外部发布/消息分发。所有端点要求`Authorization: Bearer <token>`：
+`serve --port 8765`仅绑定`127.0.0.1`，worker另开进程。本机HTTP的请求body上限64KiB、连接超时5秒、最多16个请求线程。API返回JSON，不提供自动外部发布/消息分发。CLI/API可使用`Authorization: Bearer <token>`；浏览器本机账号可使用HttpOnly会话及CSRF写请求，账号入口和首个管理员初始化见[工作台](web-workbench.md)。下列业务scope约束保持一致：
 
 | 方法和路径 | 输入 / 权限 |
 |---|---|
@@ -93,7 +95,15 @@ worker、serve、identity-issue/revoke、backup/restore 是持有本地文件权
 | `POST /controls` | `{kind, enabled, reason}`；`ops:control` |
 | `POST /calls/<id>/reconcile` | `{amount_microusd, invoice_ref}`；`cost:reconcile` |
 
-权限错误403，认证错误401，非法输入400，幂等冲突400，容量/预算拒绝429，未知对象404；异常输出只含错误类型，不回显请求/凭证/配置。报告读取重新验证内容hash。错误和拒绝响应不构成金融业务批准。
+权限403、认证401、非法输入/幂等冲突400、版本冲突409、容量/预算429、未知对象404。字段校验可返回安全fields位置/说明，其他异常只返回类别，不回显敏感原文。报告读取重新核验hash；错误响应不构成金融批准。
+
+## 股票默认路线与个人工具
+
+工作台内置21,271条源目录，GET /instruments按名称/代码/市场分页授权搜索，不在每次会话中发送全量。快捷options固定execution_mode、stock_question和display_currency；先真实采集，再四个模型环节，含重试最多8次，提交前预算须覆盖全部预留。原币种/推荐基准自动带入；FX只作显示换算，无有效汇率不改标价格。
+
+complete/insufficient是研究完整度，draft/approved是复核状态，blocked/needs_review是质量状态，三者不可混淆。Insufficient可以成功保存报告，但不形成买卖观点；预算、租约及完整性失败不能被部分结果吞掉。失败恢复入口创建新任务、更新日期和推荐8次限额，保留原股票/意图，旧记录不改写。
+
+GET/POST /watchlist按本人管理关注、笔记和最近研究，重复添加保留笔记，移除删除该对象笔记；上限100对象/4000字符。简明概览只读固定正文和已留存证据，不再次调用模型。详细用户步骤与字段来源见[字段契约](research-inputs.md)。
 
 ## 可验证的本地备份恢复
 

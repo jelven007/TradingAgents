@@ -1,8 +1,10 @@
 # 观测、SLO、告警与容量
 
-状态：2026-10-24，已有本地task/attempt/call账本、request_id访问审计、完整终态/复核/费用查询和控制开关，见[本地手册](../03-development/managed-research.md)。以下Prometheus/Trace、集中指标/告警仍为目标；NFR-001/NFR-006的SLO待部署测量与负责人确认。
+状态：2026-10-25当前查询与目标告警分开。面向SRE/运营，由SRE责任角色依据任务/审计/费用存储维护，状态或指标口径变化、事件后及30天内复核。已有工作台进度、终态、固定报告、operations/audit与控制；以下集中指标/自动告警仍为目标，SLO未实测。
 
 本地 `operations`与`audit`使用独立scope；账单未知单列，不用预留额冒充已付费用。`control pause_submissions`暂停新准入，`control freeze_publication`阻止报告发布，既有幂等任务可查询；两者不自动取消正在运行的模型调用。默认deadline1800秒，与下文15分钟生产建议区分。尚未完成20并发1000请求压测、集中时序指标、自动告警或月可用性测量。
+
+实例入口8783只是当前本机约定，不是健康接口；没有`/health/live`或`/health/ready`实现。先请求`/auth/status`确认服务/首次初始化状态，再以授权账号读取任务、报告与operations；公开首页可用不代表模型可用。task详情有stage、calls/max_calls、error_type和report_id；任务succeeded与Insufficient草稿必须分开统计。
 
 ## 1. 关联与指标
 
@@ -20,6 +22,8 @@
 | data_unavailable_total / stale_data_total | vendor、工具类别、市场 |
 | llm_tokens_total / estimated_cost_total / unknown_usage_total | provider、模型价格版本；未知费用不计0 |
 | report_review_total / evidence_missing_total | REVIEW/复核结果、缺失类别 |
+| guided_research_total / model_output_limit_total | complete/insufficient、失败安全类别；快捷路线上限8次，完整路线单独 |
+| catalog_age / fx_unavailable_total | 目录日期和源覆盖、FX缺失/过期；不把名称目录当实时行情 |
 | storage_errors_total / backup_age_seconds | 组件、备份类型 |
 
 task_id、用户、ticker等高基数字段只放日志/trace，不做metric label。成本支持账单对账后的修正事件，禁止反向改写原始usage。
@@ -39,6 +43,8 @@ task_id、用户、ticker等高基数字段只放日志/trace，不做metric lab
 | 磁盘/对象配额使用>80% / >90% | 提醒 / SEV2 | 查增长与保留策略，保护审计/记忆 |
 
 阈值是初始建议，需要消噪/负载验证；恢复通知与告警去重应按同一事件关联。外部供应商故障不使所有API readiness同时失败。
+
+当前没有自动上报新增建议指标；人工抽样应保存区间、路线、调用账本、研究完整度、quality和复核状态。空正文/length先检查token额度和模型能力，Insufficient增多检查价格身份、币种和来源；未知许可不通过更改标签清零。实际原文、完整地址和密钥不得放进监控截图或公开PR。
 
 ## 3. 容量与值班
 

@@ -400,6 +400,8 @@ class TradingAgentsGraph:
         """Execute the graph and write the resulting state to disk and memory log."""
         init_agent_state = self.create_run_state(company_name, trade_date, asset_type, portfolio)
         args = self.propagator.get_graph_args()
+        if self.callbacks:
+            args.setdefault("config", {})["callbacks"] = self.callbacks
 
         # Inject the checkpoint thread_id (from checkpoint_scope) so the same
         # ticker+date+graph-shape resumes; a different one starts fresh (#1089).

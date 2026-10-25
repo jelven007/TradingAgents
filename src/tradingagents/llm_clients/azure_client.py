@@ -6,7 +6,8 @@ from langchain_openai import AzureChatOpenAI
 from .base_client import BaseLLMClient, normalize_content
 
 _PASSTHROUGH_KWARGS = (
-    "timeout", "max_retries", "api_key", "reasoning_effort", "temperature",
+    "timeout", "max_retries", "api_key", "reasoning_effort", "temperature", "max_tokens",
+    "azure_endpoint", "azure_deployment", "api_version",
     "callbacks", "http_client", "http_async_client",
 )
 

@@ -150,8 +150,8 @@ def observe(ctx: typer.Context, prediction_id: str, observation_file: Path):
 
 @app.command("serve")
 def serve(ctx: typer.Context, port: int = 8765):
-    """Start the local JSON API on 127.0.0.1; worker runs separately."""
-    with make_server(ctx.obj, port=port) as server:
+    """Start the browser workbench and local JSON API on 127.0.0.1."""
+    with make_server(ctx.obj, port=port, browser_accounts=True) as server:
         typer.echo(f"Research API: http://127.0.0.1:{server.server_port}")
         server.serve_forever(poll_interval=0.25)
 

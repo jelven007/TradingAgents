@@ -11,5 +11,9 @@
   "retrieval": "git clone; default branch HEAD verified with git ls-remote",
   "local_branch": "chore/production-foundation",
   "connector_note": "GitHub skill loaded; connector tools unavailable in this session; local git used under the plugin hybrid workflow.",
-  "production_status": "Repository structure and documentation foundation; production services remain planned."
+  "production_status": "Historical retrieval state: repository structure and documentation foundation; production services were planned.",
+  "record_status": "historical_source_record",
+  "current_document_baseline": "PROD-DOC-2.0",
+  "current_state_reference": "docs/00-overview/current-state.md",
+  "last_verified": "2026-10-25"
 }

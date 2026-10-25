@@ -1,14 +1,16 @@
 # 项目分析：能力、架构与生产差距
 
-基线：2026-10-23，`jelven007/TradingAgents main@e8f5503`，包版本 `0.7.0`。结论基于拉取代码，未调用付费模型或真实行情验证。本次不进行交易效果背书。
+状态：2026-10-25当前实现分析，来源基线仍为2026-10-23的`main@e8f5503`，包版本0.7.0表示上游来源。工程责任角色依据源码、[验证记录](../04-testing/validation-report.md)和[股票改进](../03-development/stock-research-usability.md)维护，每次能力或发布变化复核；面向产品/架构/工程。已做真实NVDA单样本，不进行投资效果背书。
 
 ## 1. 定位与技术组成
 
 项目是 Python 多智能体金融研究框架。LangGraph 组织状态与节点，LangChain 连接模型及工具，Pydantic 约束结构化输出；Typer、Rich、Questionary 提供 CLI；Pandas、Stockstats 处理行情；Requests、yfinance 访问外部数据；SQLite 与 Markdown 文件持久化状态。
 
-适合复用的核心是分析图、时点处理、供应商抽象和离线回归测试。生产系统需要围绕核心增加服务、数据与治理层，不必重新编写每个分析师。
+当前核心价值是降低选股到可解释判断的工作量：内置目录、推荐值、预算内有界研究、支持/反方/风险与固定证据。已有本机服务、密码账号、模型设置、工作台、复核、个人关注与评估；生产组织身份、云存储/队列、许可、长期质量与SLO仍需建设。没有胜率或收益优于市场的证据。
 
-## 2. 真实运行链路
+## 2. 当前默认与专业运行链路
+
+默认工作台：选择股票/问题→真实行情、公司、新闻、基准与FX→资料分析→多方→反方→风险综合→固定报告与质量→待复核。最多8次模型调用；真实4次收尾。资料不足返回Insufficient而不默认Hold。下面保留显式专业完整图，其SDK/CLI行为兼容。
 
 ```mermaid
 flowchart TD
@@ -40,6 +42,8 @@ flowchart TD
 | 记忆与恢复 | 文件锁、决策去重、历史结算、可选 SQLite checkpoint | [记忆](../../src/tradingagents/memory/log.py)、[checkpoint](../../src/tradingagents/graph/checkpointer.py) |
 | 决策回测 | ticker × date 网格、独立日志、断点继续、按评级算超额收益 | [回测](../../src/tradingagents/backtest.py)、[结算](../../src/tradingagents/memory/settlement.py) |
 | 工程保障 | 离线默认测试、供应商模拟、CI、wheel 发布、非 root 容器 | [测试](../../tests/)、[CI](../../.github/workflows/ci.yml) |
+| 股票默认流程 | 21,271条目录、原币种/推荐基准、USD/CNY显示、有界真实研究 | [快捷研究](../../src/tradingagents/application/guided_stock.py)、[目录](../../src/tradingagents/application/securities.py) |
+| 本机产品闭环 | 密码/CSRF、版本化模型/模板、指定执行、自动报告、复核、关注与笔记 | [服务](../../src/tradingagents/application/service.py)、[工作台](../../web/src/main.jsx) |
 
 ## 4. 关键语义与限制
 
@@ -55,11 +59,11 @@ flowchart TD
 
 | 优先级 | 缺口 | 后果 | 建设方向 |
 |---|---|---|---|
-| P0 | 身份、租户隔离、任务幂等、审计缺失 | 混用数据与重复开销 | 控制面、隔离 worker、持久任务 |
+| P0 | 公司身份、账户级授权、集群隔离缺失；本机scope/幂等/审计已有 | 生产部署不能直接复用本机边界 | OIDC、集中授权与集群验收 |
 | P0 | 原始证据快照与可知时间治理不完整 | 不能证明决策输入、不能稳定重放 | 不可变快照与版本清单 |
-| P0 | 没有服务级预算、超时、监控 | 长任务失控、供应商故障难定位 | 配额、deadline、指标与告警 |
+| P0 | 本机预算/超时/账本已有，价格表、厂商配额、集中监控待建 | 预留不等于账单，缺少生产告警 | 费用对账、供应商配额与指标 |
 | P1 | 集中存储、恢复、持续评估缺失 | 多副本一致性和发布风险 | PostgreSQL、对象存储、评估门禁 |
-| P2 | Web 工作台与运营闭环 | 无法高效协作与反馈 | 任务、报告、人工复核视图 |
+| P1 | 工作台/复核已有，正式反馈平台与真实长期评估待建 | 缺少组织质量运营闭环 | 反馈版本关联和代表性评估 |
 | 后续立项 | 成交与资金系统不存在 | 不能由研究评级直接执行交易 | 独立订单域及确定性风控 |
 
 生产目标与验收见[需求](../01-requirements/product-requirements.md)，方案见[系统设计](../02-architecture/system-design.md)。

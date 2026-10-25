@@ -226,6 +226,11 @@ reports/
 .bootstrap/
 .tools/
 runtime/
+*.model-key
 .env.*
 !.env.*.example
 *.env
+
+# Frontend build tooling; the distributable web bundle is kept in the Python package.
+node_modules/
+web/.vite/

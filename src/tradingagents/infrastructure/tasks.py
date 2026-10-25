@@ -21,6 +21,17 @@ class BudgetExceeded(RuntimeError):
     pass
 
 
+STAGES = {
+    "Market Analyst": "行情分析", "Social Analyst": "情绪分析",
+    "Sentiment Analyst": "情绪分析", "News Analyst": "新闻分析",
+    "Fundamentals Analyst": "基本面分析", "Bull Researcher": "多方研究",
+    "Bear Researcher": "空方研究", "Research Manager": "研究综合", "Trader": "方案分析",
+    "Aggressive Analyst": "风险讨论", "Neutral Analyst": "风险讨论",
+    "Conservative Analyst": "风险讨论", "Portfolio Manager": "形成研究结论",
+    "Memory Log": "读取历史研究", "quality": "证据与质量校验", "report": "生成固定报告",
+}
+
+
 class TaskStore:
     def __init__(self, path: Path, *, clock=time.time):
         self.path = Path(path)
@@ -123,6 +134,39 @@ class TaskStore:
         with database(self.path) as db:
             self._active(db, task_id, attempt)
 
+    def progress(self, task_id: str, attempt: str, stage: str):
+        if not isinstance(stage, str) or stage not in STAGES:
+            return
+        with database(self.path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            self._active(db, task_id, attempt)
+            rows = db.execute(
+                "SELECT detail FROM task_events WHERE task_id=? AND action='stage' ORDER BY seq",
+                (task_id,),
+            ).fetchall()
+            if len(rows) < 128 and (not rows or json.loads(rows[-1]["detail"]).get("stage") != stage):
+                self._event(db, task_id, "stage", stage=stage, attempt=attempt)
+
+    def request_report(self, task_id: str, actor: str):
+        with database(self.path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT status FROM tasks WHERE id=?", (task_id,)).fetchone()
+            if not row or row["status"] not in {"queued", "running", "succeeded"}:
+                raise ValueError("report request requires an active or completed task")
+            if not db.execute(
+                "SELECT 1 FROM task_events WHERE task_id=? AND action='auto_report_requested'",
+                (task_id,),
+            ).fetchone():
+                self._event(db, task_id, "auto_report_requested", actor=actor)
+
+    def report_registered(self, task_id: str, report_id: str):
+        with database(self.path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            if not db.execute(
+                "SELECT 1 FROM task_events WHERE task_id=? AND action='report_registered'", (task_id,),
+            ).fetchone():
+                self._event(db, task_id, "report_registered", report_id=report_id)
+
     def _reap(self, db):
         now = self.clock()
         expired = db.execute(
@@ -148,7 +192,8 @@ class TaskStore:
             db.execute("BEGIN IMMEDIATE")
             self._reap(db)
 
-    def claim(self, worker: str, *, lease_seconds=30, max_concurrency=2) -> dict | None:
+    def claim(self, worker: str, *, lease_seconds=30, max_concurrency=2,
+              task_id: str | None = None) -> dict | None:
         if lease_seconds <= 0 or max_concurrency < 1:
             raise ValueError("positive lease and concurrency required")
         with database(self.path) as db:
@@ -159,7 +204,8 @@ class TaskStore:
             if active >= max_concurrency:
                 return None
             row = db.execute(
-                "SELECT * FROM tasks WHERE status='queued' ORDER BY created,id LIMIT 1",
+                "SELECT * FROM tasks WHERE status='queued' AND (? IS NULL OR id=?) "
+                "ORDER BY created,id LIMIT 1", (task_id, task_id),
             ).fetchone()
             if not row:
                 return None
@@ -223,6 +269,7 @@ class TaskStore:
                 or inputs["config_sha256"] != digest(json_bytes(payload["config"]))
                 or inputs["portfolio"] != payload["portfolio"]
                 or inputs["allocation"] != payload["allocation"]
+                or inputs.get("allocation_valuation") != payload.get("allocation_valuation")
                 or inputs["analysts"] != payload["selected_analysts"]
                 or manifest["implementation"] != task["implementation"]):
             raise ValueError("result does not match frozen task input/version")

@@ -2,18 +2,25 @@
 
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
 
 import tradingagents
-from tradingagents.domain.quality import AllocationInput, ResearchPolicy, check_research
+from tradingagents.domain.quality import (
+    AllocationInput,
+    AllocationValuation,
+    ResearchPolicy,
+    check_research,
+)
 from tradingagents.domain.research import ResearchMandate
 from tradingagents.infrastructure.artifacts import (
     component,
     digest,
     json_bytes,
+    read_verified,
     utc_now,
     write_json_once,
     write_once,
@@ -58,6 +65,7 @@ def execute_research(
     root: Path, scope: RunScope, mandate: ResearchMandate, config: dict, *,
     selected_analysts=("market", "social", "news", "fundamentals"),
     portfolio=None, callbacks=None, graph_factory=None, allocation: AllocationInput | None = None,
+    allocation_valuation: AllocationValuation | None = None,
     expected_implementation: dict | None = None,
 ) -> RunResult:
     """Every attempt is fresh; retries cannot inherit unaccepted output or memory.
@@ -70,6 +78,10 @@ def execute_research(
     policy = ResearchPolicy.model_validate(config.get("research_policy", {}))
     if allocation is not None:
         allocation = AllocationInput.model_validate(allocation)
+    if allocation_valuation is not None:
+        allocation_valuation = AllocationValuation.model_validate(allocation_valuation)
+        if allocation is not None:
+            raise ValueError("use one allocation input contract")
     implementation = implementation_versions()
     if expected_implementation is not None and implementation != expected_implementation:
         raise ValueError("implementation changed since task submission")
@@ -90,11 +102,18 @@ def execute_research(
         "config_sha256": config_hash, "analysts": list(selected_analysts),
         "portfolio": portfolio.model_dump(mode="json") if portfolio is not None else None,
         "allocation": allocation.model_dump(mode="json") if allocation is not None else None,
+        "allocation_valuation": (
+            allocation_valuation.model_dump(mode="json") if allocation_valuation is not None else None
+        ),
         "policy": policy.model_dump(mode="json"),
     })
     if graph_factory is None:
-        from tradingagents.graph.trading_graph import TradingAgentsGraph
-        graph_factory = TradingAgentsGraph
+        if cfg.get("execution_mode") == "guided_stock":
+            from tradingagents.application.guided_stock import GuidedStockGraph
+            graph_factory = GuidedStockGraph
+        else:
+            from tradingagents.graph.trading_graph import TradingAgentsGraph
+            graph_factory = TradingAgentsGraph
     try:
         with capture_evidence(recorder):
             graph = graph_factory(config=cfg, selected_analysts=selected_analysts,
@@ -103,7 +122,23 @@ def execute_research(
                                            asset_type=mandate.asset_type, portfolio=portfolio)
             graph.save_reports(state, mandate.ticker, path / "report")
         _, evidence_hash = recorder.seal()
-        verify_bundle(path / "evidence", evidence_hash)
+        bundle = verify_bundle(path / "evidence", evidence_hash)
+        if allocation_valuation is not None:
+            # Never use a user supplied hash or create prices from account input.
+            # An unmatched reference fails the existing deterministic quality gate.
+            reference = "0" * 64
+            for record in bundle["records"]:
+                if record["method"] != "verified_market_facts" or record["status"] == "error":
+                    continue
+                ref = record["content_sha256"]
+                fact = json.loads(read_verified(path / "evidence" / "blobs" / f"{ref}.json", ref))
+                if (isinstance(fact, dict) and fact.get("ticker") == allocation_valuation.ticker
+                        and fact.get("as_of_date") == mandate.analysis_date):
+                    reference = ref
+                    break
+            allocation = AllocationInput.model_validate({
+                **allocation_valuation.model_dump(), "evidence_sha256": reference,
+            })
         quality = check_research(mandate, state, path / "evidence", evidence_hash,
                                  policy, allocation=allocation)
         quality_hash = write_json_once(path / "quality.json", quality)

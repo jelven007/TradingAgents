@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from tradingagents.domain.quality import AllocationInput, ResearchPolicy
+from tradingagents.domain.quality import AllocationInput, AllocationValuation, ResearchPolicy
 from tradingagents.domain.research import ResearchMandate
 from tradingagents.infrastructure.artifacts import component, json_bytes
 from tradingagents.portfolio import PortfolioContext
@@ -36,6 +36,7 @@ class TaskInput(BaseModel):
     )
     portfolio: PortfolioContext | None = None
     allocation: AllocationInput | None = None
+    allocation_valuation: AllocationValuation | None = None
     limits: TaskLimits = Field(default_factory=TaskLimits)
 
     @field_validator("workspace", "experiment")

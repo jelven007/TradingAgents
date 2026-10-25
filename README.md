@@ -2,11 +2,13 @@
 
 基于 [jelven007/TradingAgents](https://github.com/jelven007/TradingAgents) 的多智能体金融研究框架，建立可持续开发的代码组织和全生命周期文档。最新拉取基线：`main` / `v0.7.0` / `e8f5503e9b86d5c2710b0c76b1f686703968c9df`，拉取日期为 2026-10-23。
 
-**当前交付是工程目录重构和生产系统设计基线。** CLI、Python SDK、分析图、回测、报告、文件记忆、SQLite checkpoint 已有实现；Web/API 服务、租户权限、任务队列、集中审计、生产监控与订单执行尚未实现。每项能力的证据见[项目分析](docs/00-overview/project-analysis.md)，全套材料从[文档导航](docs/README.md)进入。
+**当前主路径是股票研究与买卖决策辅助。** 内置21,271条美股、A股和港股证券资料，按名称/代码选股；原始币种自动确定，预置美元/人民币显示及市场推荐基准。用户选择股票与问题，默认路线整理真实资料、比较多空观点并给出评级、依据、风险与重新评估条件，含重试最多8次模型调用。密码账号、复核、个人关注、完整参数、模板/模型配置、预算、评估及CLI继续可用。详见[股票研究改进与真实复验](docs/03-development/stock-research-usability.md)和[验证记录](docs/04-testing/validation-report.md)。
+
+本机当前入口为 **http://127.0.0.1:8783/**，使用原数据库、已有密码账号和模型设置。点击“体验演示”可直接练习；真实研究使用已有账号登录。选择“开始了解公司”，搜索并点击股票、选择想了解的问题，系统完成研究并生成报告。行情和模型不足时返回“资料不足，暂不判断”，不会虚构价格或替换为合成数据；失败任务可使用推荐配置重新研究，旧记录保留。真实NVDA复验已通过4次模型调用生成完整草稿；模型观点、来源许可与人工复核状态分别展示，不承诺收益，也不执行交易。
 
 ## 项目如何工作
 
-四类分析师并行读取行情、基本面、新闻和情绪；多空研究员辩论，由研究经理形成计划；Trader 输出交易建议；三类风险分析师辩论后，由组合经理给出 `Buy / Overweight / Hold / Underweight / Sell`，无法解析时输出 `REVIEW`。记忆结算与分析师并行执行，历史经验随后进入组合经理上下文。
+股票快捷研究先留存真实行情、公司、新闻、基准及所需汇率，随后固定执行资料分析、多方、反方、风险综合四个模型环节。完整专业路线仍可显式选择：四类分析师读取行情、基本面、新闻和情绪，多空及风险研究员辩论，最后形成评级。
 
 这里的 Trader 和 Portfolio Manager 是研究角色。回测评估独立决策的收益与基准超额收益，没有持仓演化、资金账本或成交仿真。
 
@@ -25,6 +27,15 @@ tradingagents
 ```
 
 安装后可用 `python -m cli.main`，或执行 `python examples/analyze.py`。源码采用 `src/` 布局，需先安装包；单独克隆后直接运行源码模块不再是支持的启动方式。
+
+启动浏览器工作台（安装包已包含页面资源，运行时无需Node）：
+
+```bash
+python -m cli.main managed \
+  --templates config/examples/managed-templates.json serve --port 8783
+```
+
+打开首页创建首次管理员或使用已有账号，亦可先体验演示；在设置中逐层测试真实模型并保存。股票资料和推荐参数已内置，快捷路线最多8次调用；展开完整参数可查看字段来源或切换专业路线。详见[新建研究输入](docs/03-development/research-inputs.md)及[工作台手册](docs/03-development/web-workbench.md)。
 
 已有uv的团队可用 `uv sync --frozen --extra dev --python python3.13`复现依赖；仓库包含 `uv.lock` 和导出的 `requirements.lock`，容器按运行依赖的版本和hash安装。
 
@@ -91,4 +102,4 @@ docker compose --project-directory . --env-file .env -f deploy/docker/compose.ya
 - [需求追踪矩阵](docs/01-requirements/traceability.md)
 - [原始 README](docs/upstream/README.md)、[上游变更日志](CHANGELOG.md)
 
-保留上游 Apache-2.0 [许可证](LICENSE)和版权声明。论文来源：[TradingAgents: Multi-Agents LLM Financial Trading Framework](https://arxiv.org/abs/2412.20138)。本地改动尚未提交或推送，版本号保留上游 `0.7.0` 以表示来源，发布本分支前需制定独立版本。
+保留上游 Apache-2.0 [许可证](LICENSE)和版权声明。论文来源：[TradingAgents: Multi-Agents LLM Financial Trading Framework](https://arxiv.org/abs/2412.20138)。版本号0.7.0保留上游来源，仓库交付/合并以Git与PR记录为准，不能当作上游官方发行。当前事实和全部文档的维护路径见[当前状态](docs/00-overview/current-state.md)及[文档控制](docs/07-governance/document-control.md)；自有发行tag、云部署和生产签署另行处理。

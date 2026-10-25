@@ -14,9 +14,11 @@ from tradingagents.infrastructure.artifacts import component, digest, json_bytes
 from tradingagents.infrastructure.reports import database
 
 SCOPES = frozenset({
-    "task:create", "task:read", "task:cancel", "report:read", "report:register",
+    "task:create", "task:read", "task:cancel", "task:execute", "report:read", "report:register",
     "report:review", "report:publish", "report:withdraw", "ops:read", "ops:control",
     "cost:reconcile", "audit:read", "evaluation:write", "evaluation:read",
+    "settings:read", "settings:write",
+    "accounts:manage",
 })
 AUDIT_REQUEST: ContextVar[str | None] = ContextVar("research_request_id", default=None)
 

@@ -1,15 +1,20 @@
 # 文档导航与阅读路径
 
-文档基线 `PROD-DOC-1.0`，日期 2026-10-23，代码来源 `e8f5503`。这是基于代码事实形成的**待业务评审设计基线**；需求、预算、SLO、保留期和排期均为建议，尚未获得业务批准。目录迁移已执行，生产平台功能的实施状态以追踪矩阵为准。
+文档基线`PROD-DOC-2.0`，核对日期2026-10-25，原始代码来源e8f5503。面向各职能读者，工程责任角色每次合并前维护导航；[当前状态](00-overview/current-state.md)汇总已实现事实，[文档控制](07-governance/document-control.md)登记全部文档责任/来源/周期/陈旧信号。本机功能已有验证；生产SLO、保留期、云选型与业务批准仍待完成。
 
-2026-10-24新增[金融研究生产化优化建议书](00-overview/optimization-proposal.md)，基于本地提交 `9dd5b06`，从业务流程、技术、开发、测试、运营和运维六个维度提出优先级调整、12项优化建议与90天行动路线。该建议书为待评审增量，未将建议自动改为正式需求或已实现能力。
+历史[金融研究生产化优化建议书](00-overview/optimization-proposal.md)基于2026-10-24的9dd5b06，保留当时建议，非当前实施状态；后续能力以当前状态、PRD、矩阵和验证记录为准，不把建议自动视为已建。
 
 经用户授权的增量实现与验证见[逐轮迭代记录](03-development/iteration-log.md)，当前可用接口见[托管研究本地运行](03-development/managed-research.md)。本地能力与外部生产验收分开记录。
+
+新增[浏览器研究工作台](03-development/web-workbench.md)：同一本机服务提供中文交互页面，包含任务、报告复核、评估和运营入口；当前访问`http://127.0.0.1:8783/`，使用已有密码账号或体验隔离演示。
+
+2026-10-25完成[入门投资者改进](03-development/beginner-investor.md)，随后完成[股票研究易用性与真实执行](03-development/stock-research-usability.md)：21,271条内置证券资料、买入/持有/卖出问题、推荐基准、独立显示币种和预算内收尾；真实NVDA已用4次模型调用生成草稿。完整参数、复核、关注与笔记继续可用，实际验证见[验收记录](04-testing/validation-report.md)。
 
 ## 按职责阅读
 
 | 对象 | 推荐材料 | 要解决的问题 |
 |---|---|---|
+| 首次使用的投资者 | [股票研究与结果](03-development/stock-research-usability.md)、[工作台手册](03-development/web-workbench.md) | 选股票、看判断依据和风险、保存关注及笔记 |
 | 所有参与者 | [项目分析](00-overview/project-analysis.md) | 系统已有能力与局限 |
 | 产品、业务 | [产品需求](01-requirements/product-requirements.md)、[业务流程](01-requirements/domain-workflows.md) | 服务对象、边界、验收 |
 | 架构、技术负责人 | [系统设计](02-architecture/system-design.md)、[数据与接口](02-architecture/data-and-api.md) | 技术边界、一致性、扩展 |
@@ -27,7 +32,9 @@
 - [ADR-0001](02-architecture/adr/0001-modular-monolith.md)：采用模块化单体和独立进程 worker。
 - [ADR-0002](02-architecture/adr/0002-src-layout.md)：采用 `src/` 布局，保留现有 Python 导入。
 - [ADR-0003](02-architecture/adr/0003-research-before-execution.md)：先建设研究平台，订单执行独立立项。
+- [ADR-0004](02-architecture/adr/0004-guided-stock-research.md)：默认股票研究采用固定有界路线，保留专业完整图。
 - [原始上游说明](upstream/README.md)是历史来源，生产设计中的能力判断以代码分析为准。
+- [新建研究输入](03-development/research-inputs.md)：字段来源、可操作模板、持仓与估值、错误恢复及逐项验收。
 
 ## 文档协作规则
 

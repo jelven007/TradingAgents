@@ -5,6 +5,7 @@
         "research_policy": {
           "version": "pilot-daily-v1",
           "approved_tickers": ["NVDA"],
+          "allow_listed_stocks": true,
           "require_licensed_sources": true
         },
         "source_licenses": {}

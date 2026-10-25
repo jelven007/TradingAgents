@@ -6,7 +6,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from tradingagents.domain.quality import AllocationValuation
 from tradingagents.domain.research import ResearchMandate
+from tradingagents.domain.research_settings import ResearchOptions
 from tradingagents.domain.tasks import TaskLimits
 from tradingagents.portfolio import PortfolioContext
 
@@ -29,6 +31,8 @@ class SubmitRequest(BaseModel):
     template: str
     mandate: ResearchMandate
     portfolio: PortfolioContext | None = None
+    allocation_valuation: AllocationValuation | None = None
+    options: ResearchOptions | None = None
 
 
 class ReviewRequest(BaseModel):

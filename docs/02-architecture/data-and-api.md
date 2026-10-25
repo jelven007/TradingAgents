@@ -1,10 +1,18 @@
 # 数据模型与接口契约
 
-状态：2026-10-24。本文表格为生产目标契约；已实现的本机HTTP/CLI、SQLite表与错误码见[本地手册](../03-development/managed-research.md)。适用于 FR-001、FR-002、FR-004、FR-006、FR-008、FR-009、FR-012。正式生产OpenAPI/数据库迁移治理仍待建。
+状态：2026-10-25。面向后端/客户端/QA，由后端责任角色依据DTO、HTTP和存储实现维护，接口/表/状态码变化时及合并前复核。开头及“当前接口”段是本机reference；编号1–3的领域实体/目标API表是生产候选，不能用于调用本机服务。正式OpenAPI和云迁移治理仍待建。
 
 本地表包括tasks/attempts/model_calls/task_events、reports/report_events、identities/access_events、controls/cost_events、experiments/predictions/observations。金额为整数micro-USD，仓位和观察收益用Decimal字符串。计划固定样本、研究契约、模板hash、显式session序列及价格口径；预测绑定已接受报告与复核事件hash，观察追加并保留来源文本/输入hash。相同session冲突拒绝，修正须另立实验。
 
-本地路径为 `root/workspace/experiment/task/attempt`；幂等为工作空间+作者+键，HTTP成功统一200、幂等冲突400、未知对象404、跨空间403。API没有 `/api/v1` 前缀、签名下载、health、配置生效接口或自动网格调度。客户端workspace须与凭据一致，操作者由token取得；上述差异不代表生产目标已实现。
+本地路径为 `root/workspace/experiment/task/attempt`；幂等为工作空间+作者+键，HTTP成功统一200、任务幂等冲突400、模型设置版本冲突409、未知对象404、跨空间403。API没有 `/api/v1` 前缀、签名下载、health、生产审批生效接口或自动网格调度。客户端workspace须与凭据一致，操作者由token取得；上述差异不代表生产目标已实现。
+
+本地模型配置为`model_revisions`不可变公共版本、`model_active`工作空间当前指针及`model_credentials`密文表。`GET /settings/models`要求settings:read；`POST /settings/models`和`POST /settings/models/test`要求settings:write。保存body包含expected_version和quick/deep两组provider/model/base_url/api_key/clear_api_key/api_version；测试body只包含expected_version、tier和所选层的settings对象，另一层未填完不阻止测试。成功统一200，冲突409，普通用户403；响应和审计不包含密钥。配置保存后新任务冻结revision ID及公开模型字段，worker在执行上下文单独读密钥。
+
+本机浏览器认证增加`browser_accounts`（username唯一、随机ID、workspace、role、salt/password_hash）、`browser_sessions`（token_hash、账号引用、csrf、expires）和失败限流表。CLI单工作空间服务显式开启`/auth/status`、`/auth/setup`、`/auth/login`、`/auth/session`、`/auth/logout`；首次创建原子保证只有一个管理员，后续`GET/POST /accounts`需accounts:manage。会话回复只包含账号公开字段、业务scopes和CSRF，cookie保存会话token且HttpOnly；登录/账号密码不进入响应或审计。`/session`提供research_today UTC日期，前端默认研究日与后端门禁一致。完整请求和会话约束见[工作台手册](../03-development/web-workbench.md)。
+
+`POST /research`组合任务创建、指定执行和成功后自动登记报告，要求三个对应scope；原`POST /tasks`保留仅创建行为。任务事件保存自动报告意图及批准的研究阶段名称，详情返回stage列表、调用数/上限和report_id；worker及服务重启补齐未登记的成功结果，报告作者固定为任务作者。`/demo/enter`、`/demo/session`、`/demo/role`及`/demo/`业务路由仅操作每个演示会话独立的合成库，cookie/CSRF与正式账号分开，演示身份不能授权正式接口。
+
+2026-10-25增加 `research_revisions/research_active` 和 `GET/POST /settings/research`：模板公开参数按工作空间不可变版本保存，激活采用expected_version，冲突409。会话返回同源默认值、允许范围与模型摘要，任务接收受模板约束的options和账户allocation_valuation；错误可返回安全fields位置/原因，任务和报告可读取固定输入摘要。来源许可、质量策略、密钥和任意运行配置不属于此公开模板接口。完整字段及操作契约见[研究输入](../03-development/research-inputs.md)。
 
 ## 1. 领域实体
 
@@ -73,3 +81,21 @@
 分页使用游标、默认50/最大200，排序键含ID以避免相同时间漏项。写操作带 expected_version，更新零行即冲突。网络超时后客户端使用同一幂等键重试，禁止自动换键。
 
 ready 检查数据库/队列等内部依赖，外部模型波动记录指标，不使所有 API 实例一起退出就绪。任何 endpoint、ticker、文件路径和报告 HTML 均按[安全设计](security-model.md)验证。
+
+## 5. 已实现的本机入门接口（2026-10-25）
+
+前述`/api/v1`为生产设计。当前loopback服务使用下列无前缀路由，密码会话与CSRF沿用工作台契约；演示对应`/demo/...`，身份和数据库均隔离。
+
+| 方法 / 路径 | 当前行为 |
+|---|---|
+| GET `/session`、`/auth/session` | 返回实际权限、模板、股票目录元数据与小量选择建议；完整目录不进入响应 |
+| GET `/instruments?q=...&market=US/CN/HK&limit=...&offset=...` | `task:read`鉴权；按名称/别名/代码分页搜索，limit为1–100，按可信模板过滤允许范围 |
+| GET `/watchlist` | 当前身份的关注、笔记及本人最近八份任务；每个关注对象关联本人的真实最近任务/报告 |
+| POST `/watchlist` | 严格接收`action: add/remove/save_note`、`symbol`、`note`；拒绝`subject`或`workspace`等额外字段 |
+| GET `/reports/{id}` | 完成授权与固定文件完整性核验后，增加只读`brief`，保留原正文、质量、输入和复核记录 |
+
+`investor_watchlist`以`workspace + subject + symbol`唯一，SQLite事务控制最多100个关注对象，笔记最多4000字符。重复添加保留原笔记；批准清单改变后已有笔记仍可读取、编辑和移除，重新研究须重新校验范围。读取需要`task:read`，写入需要`task:create`；请求不能选择另一所有者。
+
+`brief`只节选固定报告原文和已核验的结构化证据，不额外调用模型。缺少支持、反方或风险原文时明确返回`provided: false`；有价格冲突、过期、未来日期、未知币种或缺少核验行情时不提供价格。价格附研究日、币种、来源及合成标志，界面不将其称为实时行情。实现及验收见[入门投资者改进](../03-development/beginner-investor.md)。
+
+股票快捷任务固定`execution_mode=guided_stock`、`stock_question`、`display_currency`与选择的证券资料；专业完整路线仍是原API默认值。报价币种与显示币种分离，`brief.converted_price`只从已核验的汇率blob计算，包含汇率和日期；无有效汇率则为空。`research_status=insufficient`与普通Hold区分，预算预留必须容纳最多8次调用。目录授权由`research_policy.allow_listed_stocks`可信配置控制，公开模板不能改写该许可；旧任务不会因目录或模板更新而改变。见[股票研究执行契约](../03-development/stock-research-usability.md)。
