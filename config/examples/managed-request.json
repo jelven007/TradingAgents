@@ -1,0 +1,15 @@
+{
+  "workspace": "research",
+  "experiment": "baseline",
+  "template": "daily",
+  "mandate": {
+    "ticker": "NVDA",
+    "analysis_date": "2026-10-23",
+    "asset_type": "stock",
+    "purpose": "general_research",
+    "prediction_horizon_trading_days": 5,
+    "benchmark": "SPY",
+    "quote_currency": "USD",
+    "valid_until": "2026-10-31"
+  }
+}

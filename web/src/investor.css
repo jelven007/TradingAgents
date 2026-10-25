@@ -1,0 +1,61 @@
+.display-mode{border:1px solid var(--line);border-radius:6px;background:transparent;color:inherit;padding:8px 12px;font:inherit;white-space:nowrap;cursor:pointer}
+.sidebar{overflow-y:auto;overscroll-behavior:contain}.sidebar nav,.sidebar .brand,.sidebar-bottom{flex-shrink:0}
+.beginner .page-heading h1{font-size:34px;line-height:1.45;letter-spacing:0}
+.beginner .page-heading p{font-size:15px;color:#526351}
+.beginner-path{display:flex;gap:26px;padding:22px 0 28px;margin-bottom:22px;border-bottom:1px solid var(--line)}
+.beginner-path>div{flex:1;display:flex;gap:14px;align-items:flex-start}
+.beginner-path>div>span{color:#657a50;font-size:13px;border:1px solid #ccdbc1;border-radius:50%;width:32px;height:32px;display:grid;place-items:center;flex-shrink:0}
+.beginner-path strong{font-size:16px}.beginner-path p{font-size:13px;color:#536551;margin:5px 0 0}
+.beginner-layout{grid-template-columns:minmax(0,1fr) 300px}
+.beginner-side{padding:28px}.beginner-side h2{margin:8px 0}.beginner-side p{color:#536551;line-height:1.9;margin:12px 0 20px}
+.beginner-side hr{border:0;border-top:1px solid var(--line);margin:30px 0}
+.eyebrow{font-size:12px;letter-spacing:.5px;color:#667950}
+.investor-recent{padding:0 24px 15px}.recent-research{display:flex;width:100%;justify-content:space-between;gap:20px;text-align:left;background:transparent;border:0;border-bottom:1px solid var(--line);padding:20px 0;cursor:pointer;color:inherit;font:inherit}
+.recent-research:last-child{border-bottom:0}.recent-research strong{font-size:16px}.recent-research small{display:block;color:#536551;font-size:12px;margin-top:7px}
+.recent-research>div:last-child{text-align:right;flex-shrink:0}.recent-research>div:last-child>span:last-child{display:flex;gap:6px;align-items:center;margin-top:8px;font-size:12px;color:#496534}
+.research-mode{margin-bottom:22px}.research-mode button{flex:1}.quick-research .field-title{font-size:15px}
+.quick-research input,.quick-research select{min-height:46px;font-size:16px}
+.company-options{display:flex;flex-wrap:wrap;gap:10px;margin:10px 0 24px}
+.company-options button,.horizon-options button{font:inherit;border:1px solid #d4dfca;border-radius:6px;background:#f8faf5;color:#35572a;padding:10px 13px;cursor:pointer}
+.company-options button span{color:#60744c;font-size:12px;margin-left:8px}
+.horizon-options{display:flex;flex-wrap:wrap;gap:8px;margin:-6px 0 26px}
+.horizon-options button[aria-pressed=true]{background:#d6ebbf;border-color:#607948}
+.quick-confirm{padding:20px;background:#f5f8f0;border:1px solid #dbe4d2;border-radius:9px}
+.quick-confirm h3{font-size:16px;margin:0 0 14px}.quick-confirm p{font-size:13px;margin:8px 0;line-height:1.8;color:#43593b}
+.quick-confirm small{display:block;font-size:12px;line-height:1.8;color:#516548}.quick-confirm button{margin-top:16px}
+.watchlist-panel{padding:28px}.watchlist-panel>.field{max-width:560px;margin-top:24px}
+.watchlist-items{border-top:1px solid var(--line);margin-top:28px}.watchlist-item{padding:24px 0;border-bottom:1px solid var(--line)}
+.watchlist-item:last-child{border-bottom:0}.watchlist-title{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+.watchlist-title h3{font-size:19px}.watchlist-title small{font-size:12px;color:#55694a}.watchlist-title h3 small{margin-left:10px}.watchlist-title p{margin:8px 0;font-size:13px;color:#526449}
+.saved-note{white-space:pre-wrap;overflow-wrap:anywhere;background:#f7f9f4;padding:15px 18px;border-left:3px solid #d5e4c6;margin:16px 0 20px;line-height:1.9}
+.investor-guide{padding:30px;max-width:900px}.investor-guide>p{line-height:1.9;margin:16px 0 22px}.investor-guide>.field{margin-top:30px;max-width:500px}
+.investor-guide dl>div{padding:22px 0;border-top:1px solid var(--line)}.investor-guide dt{font-size:17px;font-weight:600}.investor-guide dd{margin:10px 0 0;font-size:15px;line-height:1.9;color:#53654a}
+.report-brief{padding:26px 0;font-size:15px;line-height:1.9}.brief-status{padding:20px 24px;border-radius:8px;background:#f4f7ee;border:1px solid #d9e3cc;color:#435835}
+.brief-alert{background:#fff6ed;border-color:#ead4b7;color:#7c4b22}.brief-status p{margin:8px 0}.brief-status button{margin-top:8px}
+.brief-opinion{padding:26px 0 22px}.brief-opinion h3{font-size:26px;margin:6px 0 10px}.brief-opinion p{margin:8px 0;color:#4e6142}
+.brief-price{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:20px 0}.brief-price p{margin:8px 0}.brief-price small{display:block;font-size:12px;color:#53664a}
+.brief-excerpts{display:grid;grid-template-columns:1fr 1fr;gap:0 28px}.brief-excerpts section{padding:24px 0;border-bottom:1px solid var(--line);min-width:0}.brief-excerpts section:first-child{grid-column:1/-1}
+.brief-excerpts h3,.brief-gaps h3{font-size:17px}.excerpt-text{white-space:pre-wrap;overflow-wrap:anywhere;margin:12px 0;color:#425b38}.brief-excerpts small{font-size:11px;color:#667658;overflow-wrap:anywhere}
+.brief-gaps{padding:24px 0}.brief-gaps ul{padding-left:21px;margin:12px 0;line-height:1.9}.brief-gaps li{margin:10px 0}.brief-source{display:block;font-size:12px;color:#617352;margin-top:22px}
+.market-options{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}.market-options button{background:transparent;border:1px solid var(--line);border-radius:6px;padding:9px 14px;color:var(--green);min-height:42px}
+.market-options button[aria-pressed=true],.company-options button[aria-pressed=true]{background:var(--accent);border-color:#708866}
+.stock-picker .company-options{display:grid;grid-template-columns:1fr 1fr;margin-bottom:10px}.stock-picker .company-options button{text-align:left;min-width:0;overflow-wrap:anywhere}.stock-picker .company-options span{display:block;margin:4px 0 0}
+.stock-picker>.small{margin:10px 0 24px}.stock-picker .text-button{margin-left:15px;min-height:36px}
+.decision-details{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}.decision-details section{padding:22px 0;border-bottom:1px solid var(--line)}.decision-details section:last-child{grid-column:1/-1}.decision-details ul{padding-left:22px;margin:12px 0}.decision-details li{margin:10px 0}.decision-conclusion{font-size:17px}
+.brief-original{margin-top:24px;border-top:1px solid var(--line);padding-top:18px}.brief-original summary{cursor:pointer;color:var(--green);font-size:14px;min-height:42px}
+@media(max-width:700px){.stock-picker .company-options,.decision-details{grid-template-columns:1fr}.market-options button{padding:9px 12px}.decision-conclusion{font-size:15px}}
+[hidden]{display:none!important}
+@media(max-width:1100px){.beginner-layout{grid-template-columns:minmax(0,1fr)}.beginner-side{padding:24px}.beginner-path{gap:16px}}
+@media(max-width:700px){.display-mode{font-size:11px;padding:7px 9px;border-color:#71835e}
+ .topbar-actions .account-button{display:none}.breadcrumb strong,.topbar-actions .disconnect{white-space:nowrap}
+ .beginner .page-heading h1{font-size:27px}.beginner .page-heading p{font-size:14px}.beginner .heading-actions>.button{font-size:14px;min-height:44px}
+ .beginner-path{display:block;padding:0 0 20px;margin-bottom:22px}.beginner-path>div{margin-top:18px}.beginner-path p{font-size:13px}
+ .recent-research{gap:12px}.recent-research strong{font-size:15px}.recent-research small{font-size:11px}.investor-recent{padding:0 18px 10px}
+ .watchlist-panel,.investor-guide{padding:22px 18px}.watchlist-title{display:block}.watchlist-title>small{display:block;margin-top:10px}
+ .watchlist-item .inline-actions{gap:10px}.watchlist-item .button{font-size:12px}.watchlist-panel>p,.investor-guide dd{font-size:14px}
+ .quick-research .field-title{font-size:14px}.quick-confirm{padding:16px}.quick-confirm p{font-size:13px}.quick-confirm small{font-size:12px}
+ .company-options{gap:8px}.company-options button,.horizon-options button{font-size:13px;padding:10px}.company-options button span{font-size:11px}
+ .brief-excerpts{grid-template-columns:1fr}.report-brief{font-size:14px}.brief-status{padding:16px}.brief-opinion h3{font-size:24px}
+ .report-toolbar .tabs{flex-wrap:wrap}.report-toolbar .tabs button{font-size:12px;min-height:40px;padding:8px}.brief-price small{font-size:12px}
+ .auth-demo .button{min-height:44px;font-size:14px}.auth-story p{font-size:14px}
+}

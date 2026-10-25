@@ -1,0 +1,23 @@
+{
+  "workspace": "research",
+  "experiment": "diagnostic-example",
+  "mode": "diagnostic",
+  "price_basis": "split_adjusted_close",
+  "calendar_source": "operator-supplied example",
+  "calendar_evidence": "Illustrative US sessions only; verify the actual approved calendar before use",
+  "samples": [
+    {
+      "key": "sample-1",
+      "template": "daily",
+      "mandate": {
+        "ticker": "NVDA",
+        "analysis_date": "2026-10-16",
+        "prediction_horizon_trading_days": 5,
+        "benchmark": "SPY",
+        "quote_currency": "USD",
+        "valid_until": "2026-11-16"
+      },
+      "sessions": ["2026-10-19", "2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-26"]
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+# 测试策略与质量门禁
+
+状态：2026-10-25。面向QA/工程，由QA责任角色依据tests、CI和验证记录维护；行为、依赖、验收口径变化及每次合并前复核。默认离线回归、实际浏览器与真实供应商是不同证据，金融有效性和生产平台另验，需求覆盖以[矩阵](../01-requirements/traceability.md)为准。
+
+## 1. 分层与执行
+
+| 层 | 位置 | 目标与环境 |
+|---|---|---|
+| unit | `tests/unit/` | 输入、供应商、模型兼容、报告、记忆；默认无网络 |
+| architecture | `tests/architecture/` | vendor依赖边界、prompt完整性、语言、版本；扫描目录必须非空 |
+| system | `tests/system/` | 真实LangGraph＋脚本模型，完整分析/恢复/回测/无TTY，默认离线 |
+| integration | 显式 `integration` marker | 上游现有网络用例；未来增加API/DB/队列/供应商契约 |
+| acceptance/performance/recovery | 后续独立环境 | 真实负载、授权、质量、恢复；不列为已有通过 |
+
+`python -m pytest -q`包含全部默认离线层，排除integration。`python -m pytest -q -m system`用于完整流程定位，`-m integration`仅在专用凭据/预算/授权准备后执行。system用例保留上游unit marker并额外加system，不影响默认覆盖。
+
+## 2. 核心不变量
+
+输入：规范日期、拒绝未来日、ticker身份、路径、跨市场币种。数据：采集时点与可知时点分离，历史财务/新闻/社交/记忆不能越界；错误返回不可用而非虚构行情。图：全部选定分析师报告后才辩论，工具历史隔离，轮次上限可结束，深浅模型配置正确。输出：五档评级、REVIEW、结构化回退、中文格式标签，分节/完整HTML均可读。
+
+恢复：中断后节点续跑且不重复接受决策；上游checkpoint签名不匹配需新跑；src移动不能使资源或架构扫描失效。本地新增用例验证spawn进程超时/取消/崩溃、租约续期/重领、旧attempt拒绝、预算unknown、固定hash对象恢复；不证明云队列、生产多机或RPO/RTO。
+
+## 3. 平台必增用例
+
+本地已执行：`test_research_mandate.py`、`test_evidence.py`、`test_research_quality.py`、`test_report_lifecycle.py`、`test_managed_tasks.py`、`test_research_evaluation.py`及system managed服务/真实图。覆盖输入、消费证据/hash、硬规则/自审、并发幂等/预算/租约、挂起与崩溃进程、实际loopback HTTP权限、准入与发布控制、一次性对账、完整分母、前瞻时间门禁、同币种同窗口收益、短窗口interim、篡改和恢复。
+
+正向前瞻时点测试使用明确合成时钟，行情/模型是离线替身；真实图用于验证接线而非研究有效性。`loopback_network`仅解禁127.0.0.1，其他socket与curl外网阻断保留。下面的云队列/outbox/下载/真实外部部分仍为待增门禁，不将本地HTTP测试归入外网integration。
+
+本机同键异请求为400，设置版本冲突为409；云API目标冲突409不要套用于当前协议。未来需测outbox、队列重复投递和生产下载授权；现有worker死亡、租约、取消竞争、预算并发、hash损坏、复核和实验隔离继续回归。
+
+注入429/500/timeout/空行情/过期行情/schema失败/恶意新闻、社交prompt；测试必须验证失败分类、终态与审计/成本，不只assertHTTP200。
+
+## 4. 性能与质量
+
+控制面固定20并发至少1000次请求，记录环境规格、数据量、连接池、p50/p95/p99、错误率与吞吐。worker按供应商配额压测真实/替身负载，观察内部分析师并行和总tokens。外部模型真实耗时不能从脚本模型推断。
+
+模型评估固定输入集、多次采样、时间分层；记录事实可核验率、时点泄漏、schema/评级成功率、REVIEW、缺失诚实性、费用与延迟。alpha仅评估独立评级；失败和pending分别统计，禁止只选成功样本。
+
+## 5. 发布证据
+
+每次发布需lint、文档、离线全套、wheel/sdist、仓库外import/CLI/资源、镜像非root检查；服务试运行再补真实供应商契约、授权、预算、故障和恢复门禁。CI有Python 3.11–3.14及纽约时区矩阵；本地仅实测环境写入[验证记录](validation-report.md)，不宣称矩阵已运行。
+
+测试失效先识别是迁移、依赖或上游行为；若怀疑上游基线，在独立checkout与相同依赖重跑相关用例。不要通过skip或放宽业务断言消除失败。
+
+## 6. 入门股票与文档合并门禁
+
+| 覆盖 | 必须验证 | 证据入口 |
+|---|---|---|
+| 目录/推荐 | 源总数/唯一代码、名称/市场分页、授权、原币种及基准 | test_guided_stock.py及安装资源检查 |
+| 有界真实路线 | 最多8次、预留门禁、空/截断/解析失败、异常价格零模型调用 | test_guided_stock.py、调用账本 |
+| 账号/配置 | CSRF、错误登录、角色、自审、密钥不回显、留空/变地址、版本固定 | test_browser_login.py、test_model_settings.py |
+| 字段/持仓 | 所有输入来源、模板CAS、固定options、导入/估值及错误焦点 | test_research_inputs.py和两轮实际UI |
+| 报告/回访 | 缺口≠Hold、原文一致、价格时效、FX日期、本人笔记/重启/恢复 | test_beginner_investor.py、真实报告UI |
+| 响应式 | 1440×1000、390×844、844×390实际完成创建/报告/关注 | 浏览器输出、截图、pageerror/溢出检查 |
+| 打包/CI | 前端源码构建无漂移、wheel页面/证券齐全、仓库外加载 | 前端构建与clean-install smoke |
+| 全链文档 | PRD/矩阵编号一致、本地文件链接有效、当前/目标/历史状态明确 | scripts/check_docs.py、文档清单逐项复核 |
+
+合成示例用脚本模型证明接线及持久化，真实NVDA4次调用只证明当前供应商能在预算内完成一个任务。两者都不证明胜率、所有市场、发布许可或长期SLO。合并证据必须是本次新运行命令，旧1546通过的历史记录仅作对照；CI矩阵以远端实际check结果为准。

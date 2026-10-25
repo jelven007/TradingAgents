@@ -19,6 +19,7 @@ dependencies = [
     "markdown-it-py>=4.0",
     "packaging>=24.0",
     "pandas>=3.0.6",
+    "pydantic>=2.0",
     "python-dotenv>=1.0.0",
     "pytz>=2025.2",
     "questionary>=2.1.0",
@@ -35,6 +36,7 @@ dev = [
     "ruff>=0.16",
     "pytest>=8.0",
     "pytest-subtests>=0.13",
+    "build>=1.2",
 ]
 # Amazon Bedrock support (AWS SigV4 auth + boto3). Optional so the core install
 # stays lean: pip install "tradingagents[bedrock]".
@@ -49,11 +51,12 @@ tradingagents = "cli.main:app"
 version = {attr = "tradingagents.__version__"}
 
 [tool.setuptools.packages.find]
+where = ["src"]
 include = ["tradingagents*", "cli*"]
 
 [tool.setuptools.package-data]
 cli = ["static/*"]
-tradingagents = ["assets/*.svg"]
+tradingagents = ["assets/*.svg", "assets/*.json", "web/*.html", "web/*.js", "web/*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -61,6 +64,7 @@ addopts = "-ra --strict-markers -m \"not integration\""
 markers = [
     "unit: fast isolated unit tests",
     "integration: tests requiring external services; run only when asked for, with -m integration",
+    "system: offline tests spanning the complete application workflow",
     "smoke: quick sanity-check tests",
 ]
 filterwarnings = [
@@ -70,7 +74,7 @@ filterwarnings = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["results"]
+extend-exclude = ["results", ".bootstrap", ".tools", ".cache"]
 
 [tool.ruff.lint]
 # Standard "good defaults" rule set (pyflakes + pycodestyle + isort + bugbear +

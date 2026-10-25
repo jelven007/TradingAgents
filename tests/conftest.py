@@ -5,6 +5,9 @@ import socket
 
 import pytest
 
+_SOCKET_CONNECT = socket.socket.connect
+_GETADDRINFO = socket.getaddrinfo
+
 
 def _blank_settings_overlay():
     """Blank every TRADINGAGENTS_* setting before the package is imported.
@@ -56,6 +59,16 @@ def pytest_configure(config):
     yfinance.set_tz_cache_location(tempfile.mkdtemp(prefix="tradingagents-tests-yf-"))
 
 
+def pytest_collection_modifyitems(items):
+    """The offline system suite keeps a separate selectable marker."""
+    from pathlib import Path
+
+    system_dir = Path(__file__).parent / "system"
+    for item in items:
+        if system_dir in Path(item.path).parents:
+            item.add_marker(pytest.mark.system)
+
+
 @pytest.fixture(autouse=True)
 def _no_network(request, monkeypatch):
     """Tests do not reach the network; one that must is marked integration."""
@@ -73,6 +86,24 @@ def _no_network(request, monkeypatch):
 
     monkeypatch.setattr(curl_requests.Session, "request", refuse)
     monkeypatch.setattr(curl_requests.AsyncSession, "request", refuse)
+
+
+@pytest.fixture
+def loopback_network(monkeypatch):
+    """Exercise a local HTTP server while external sockets and curl remain blocked."""
+    def connect(sock, address):
+        if not isinstance(address, tuple) or address[0] != "127.0.0.1":
+            raise OSError("only IPv4 loopback is allowed")
+        return _SOCKET_CONNECT(sock, address)
+
+    def resolve(host, *args, **kwargs):
+        if host != "127.0.0.1":
+            raise OSError("only IPv4 loopback resolution is allowed")
+        return _GETADDRINFO(host, *args, **kwargs)
+
+    monkeypatch.setattr(socket.socket, "connect", connect)
+    monkeypatch.setattr(socket, "getaddrinfo", resolve)
+    monkeypatch.setenv("no_proxy", "127.0.0.1")
 
 
 @pytest.fixture(autouse=True)
